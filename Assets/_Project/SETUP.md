@@ -56,6 +56,21 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
   非アクティブにしておく
 - 全インスタンスを `WaveManager.zombiePool` 配列に登録
 
+### ゾンビのボイス（`Assets/ThirdParty/Zombie Voices Audio Pack`）
+
+1. ゾンビのプレハブ（プール1体分）に `AudioSource` を追加し、`ZombieAI.voiceAudioSource`
+   に紐付ける（3D Sound推奨: Spatial Blend = 1）
+2. 手順1で作った `ZombieConfig` のInspectorで、`Assets/ThirdParty/Zombie Voices Audio Pack/`
+   配下のWAVファイルを用途別に複数ドラッグ&ドロップする:
+   - `attackClips` ← `Attack/` フォルダ
+   - `damageClips` ← `Pain/` または `Damage/` フォルダ
+   - `deathClips` ← `Death/` フォルダ
+   - `idleClips` ← `Grunt/` や `Breathing/` フォルダ（追跡中にランダムで再生、
+     `idleClipChancePerRetarget` で頻度調整）
+3. 死亡音は同期フラグ経由で全クライアントに再生される。被弾音・徘徊音は
+   現在そのゾンビを所有しているクライアント（主に攻撃者かマスター）でのみ
+   再生される軽量実装（3D音源なので位置は正しく聞こえる）
+
 ## 7. 銃
 
 - 銃モデルに `VRC Pickup` コンポーネント + `Gun.cs` を付与
@@ -64,6 +79,24 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
   - `settings` = GameSettings
   - `hud` = HudController（キル数によるティアアップ通知を出すため）
 - 弾薬箱には `AmmoPickup.cs`（Trigger Collider必須）
+
+### スライド・チャージングハンドルのアニメーション（スクリプト駆動、任意）
+
+`Gun.cs`はベイクされたAnimatorクリップに依存せず、スライド/ボルトとチャージング
+ハンドルの前後移動を完全にコードで再現する（`Update()`内でlocalPositionを
+Lerpするだけの軽量実装）。どのモデルでも「動かしたい部品のTransform」を
+割り当てるだけで使えるので拡張・差し替えが容易:
+
+- `Gun.slide` — 発砲するたびに後退→前進する部品（スライド/ボルト）のTransform。
+  空なら何もしない
+  - `slideBackOffset`（既定 (0,0,-0.03)） — 後退時のローカル座標オフセット
+  - `slideBackDuration` / `slideForwardDuration` — 後退・前進にかかる時間
+- `Gun.chargingHandle` — リロード完了時に1回だけ前後する部品のTransform
+  - `chargingHandleBackOffset`（既定 (0,0,-0.05)）
+  - `chargingHandleCycleDuration` — 後退+前進の往復にかかる合計時間
+
+いずれも「見た目上動かしたい子オブジェクトのTransform」をInspectorにドラッグする
+だけで有効になる。モデルのローカル軸によって符号（+/-）を調整すること。
 
 ### 未インポートの武器パック（Low Poly AR/Pistol/SMG/Shotgun/WWII等）
 

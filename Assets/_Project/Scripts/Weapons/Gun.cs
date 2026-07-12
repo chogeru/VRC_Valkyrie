@@ -33,6 +33,23 @@ public class Gun : UdonSharpBehaviour
     public int currentAmmo;
     public int reserveAmmo;
 
+    // Procedural slide/bolt + charging handle motion - purely script-driven
+    // (no baked Animator clips required), so it works with any weapon model:
+    // just assign the moving child Transform and tune the offsets/timings.
+    [Header("Slide / Bolt Animation (optional)")]
+    [Tooltip("The slide/bolt child Transform that racks back on every shot. Leave empty to skip.")]
+    public Transform slide;
+    [Tooltip("Local-space offset (from its rest position) the slide reaches at full travel.")]
+    public Vector3 slideBackOffset = new Vector3(0f, 0f, -0.03f);
+    public float slideBackDuration = 0.04f;
+    public float slideForwardDuration = 0.08f;
+
+    [Header("Charging Handle Animation (optional)")]
+    [Tooltip("The charging handle child Transform that racks once after a reload finishes. Leave empty to skip.")]
+    public Transform chargingHandle;
+    public Vector3 chargingHandleBackOffset = new Vector3(0f, 0f, -0.05f);
+    public float chargingHandleCycleDuration = 0.25f;
+
     public const int MaxTier = 3;
     [UdonSynced] public int tier; // 0 = base, 1-3 = upgrade tiers purchased at the shop
 
@@ -41,11 +58,30 @@ public class Gun : UdonSharpBehaviour
     private float nextFireTime;
     private int lastAppliedTier = -1;
 
+    private Vector3 slideRestLocalPos;
+    private bool slideAnimating;
+    private bool slideGoingBack;
+    private float slideAnimStartTime;
+
+    private Vector3 chargeRestLocalPos;
+    private bool chargeAnimating;
+    private bool chargeGoingBack;
+    private float chargeAnimStartTime;
+
     void Start()
     {
         currentAmmo = EffectiveMagazineSize();
         reserveAmmo = config.reserveAmmoMax;
         lastAppliedTier = tier;
+
+        if (slide != null) slideRestLocalPos = slide.localPosition;
+        if (chargingHandle != null) chargeRestLocalPos = chargingHandle.localPosition;
+    }
+
+    void Update()
+    {
+        UpdateSlideAnim();
+        UpdateChargeAnim();
     }
 
     public override void OnPickupUseDown()
@@ -107,6 +143,7 @@ public class Gun : UdonSharpBehaviour
     {
         if (muzzleFlash != null) muzzleFlash.Play();
         if (fireSound != null) fireSound.Play();
+        TriggerSlideCycle();
 
         Vector3 origin = muzzle != null ? muzzle.position : transform.position;
         Vector3 dir = muzzle != null ? muzzle.forward : transform.forward;
@@ -226,6 +263,7 @@ public class Gun : UdonSharpBehaviour
         currentAmmo += toLoad;
         reserveAmmo -= toLoad;
         isReloading = false;
+        TriggerChargeCycle();
     }
 
     public void AddReserveAmmo(int amount)
@@ -234,4 +272,74 @@ public class Gun : UdonSharpBehaviour
     }
 
     public int GetTier() { return tier; }
+
+    // --- Procedural slide/bolt animation -----------------------------
+
+    private void TriggerSlideCycle()
+    {
+        if (slide == null) return;
+        slideAnimating = true;
+        slideGoingBack = true;
+        slideAnimStartTime = Time.time;
+    }
+
+    private void UpdateSlideAnim()
+    {
+        if (!slideAnimating || slide == null) return;
+
+        float duration = slideGoingBack ? slideBackDuration : slideForwardDuration;
+        float t = Mathf.Clamp01((Time.time - slideAnimStartTime) / Mathf.Max(0.001f, duration));
+        Vector3 from = slideGoingBack ? slideRestLocalPos : slideRestLocalPos + slideBackOffset;
+        Vector3 to = slideGoingBack ? slideRestLocalPos + slideBackOffset : slideRestLocalPos;
+        slide.localPosition = Vector3.Lerp(from, to, t);
+
+        if (t >= 1f)
+        {
+            if (slideGoingBack)
+            {
+                slideGoingBack = false;
+                slideAnimStartTime = Time.time;
+            }
+            else
+            {
+                slideAnimating = false;
+                slide.localPosition = slideRestLocalPos;
+            }
+        }
+    }
+
+    // --- Procedural charging handle animation -------------------------
+
+    private void TriggerChargeCycle()
+    {
+        if (chargingHandle == null) return;
+        chargeAnimating = true;
+        chargeGoingBack = true;
+        chargeAnimStartTime = Time.time;
+    }
+
+    private void UpdateChargeAnim()
+    {
+        if (!chargeAnimating || chargingHandle == null) return;
+
+        float half = chargingHandleCycleDuration * 0.5f;
+        float t = Mathf.Clamp01((Time.time - chargeAnimStartTime) / Mathf.Max(0.001f, half));
+        Vector3 from = chargeGoingBack ? chargeRestLocalPos : chargeRestLocalPos + chargingHandleBackOffset;
+        Vector3 to = chargeGoingBack ? chargeRestLocalPos + chargingHandleBackOffset : chargeRestLocalPos;
+        chargingHandle.localPosition = Vector3.Lerp(from, to, t);
+
+        if (t >= 1f)
+        {
+            if (chargeGoingBack)
+            {
+                chargeGoingBack = false;
+                chargeAnimStartTime = Time.time;
+            }
+            else
+            {
+                chargeAnimating = false;
+                chargingHandle.localPosition = chargeRestLocalPos;
+            }
+        }
+    }
 }

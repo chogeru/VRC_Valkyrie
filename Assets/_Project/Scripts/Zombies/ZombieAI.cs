@@ -22,6 +22,8 @@ public class ZombieAI : UdonSharpBehaviour
     public NavMeshAgent agent;
     public Animator animator;
     public Collider hitCollider;
+    [Tooltip("3D AudioSource on this zombie used for ZombieConfig's attack/damage/death/idle clips.")]
+    public AudioSource voiceAudioSource;
 
     [UdonSynced] private bool syncedActive;
     [UdonSynced] private bool syncedDead;
@@ -75,6 +77,9 @@ public class ZombieAI : UdonSharpBehaviour
         {
             if (hitCollider != null) hitCollider.enabled = false;
             if (animator != null) animator.SetTrigger("Die");
+            // Runs on every client (driven by the synced flag), so everyone
+            // in earshot hears the death sound, not just whoever landed the kill.
+            PlayRandomClip(config.deathClips);
             return;
         }
 
@@ -100,6 +105,7 @@ public class ZombieAI : UdonSharpBehaviour
         {
             nextRetargetTime = Time.time + 1f;
             targetPlayer = FindNearestPlayer();
+            if (Random.value < config.idleClipChancePerRetarget) PlayRandomClip(config.idleClips);
         }
         if (targetPlayer == null || !targetPlayer.IsValid()) return;
 
@@ -136,11 +142,25 @@ public class ZombieAI : UdonSharpBehaviour
 
     private void AttackPlayer(VRCPlayerApi player)
     {
+        PlayRandomClip(config.attackClips);
+
         if (settings == null || settings.playerHealthObjectPrefab == null) return;
         GameObject obj = player.GetPlayerObject(settings.playerHealthObjectPrefab);
         if (obj == null) return;
         PlayerHealthManager health = (PlayerHealthManager)obj.GetComponent(typeof(PlayerHealthManager));
         if (health != null) health.ApplyDamage(config.attackDamage);
+    }
+
+    // Note: this plays locally for whoever currently owns the zombie
+    // (typically the shooter or master), not broadcast to every nearby
+    // player - acceptable for this ambient flavor sound. Death sound (see
+    // ApplyActivationLocal) IS broadcast to everyone since it's driven by
+    // the synced "dead" flag.
+    private void PlayRandomClip(AudioClip[] clips)
+    {
+        if (voiceAudioSource == null || clips == null || clips.Length == 0) return;
+        AudioClip clip = clips[Random.Range(0, clips.Length)];
+        if (clip != null) voiceAudioSource.PlayOneShot(clip);
     }
 
     // Called locally by whichever client's shot hit this zombie (see Gun.cs).
@@ -157,6 +177,10 @@ public class ZombieAI : UdonSharpBehaviour
         {
             killedByThisHit = true;
             Die();
+        }
+        else
+        {
+            PlayRandomClip(config.damageClips);
         }
         RequestSerialization();
         return killedByThisHit;

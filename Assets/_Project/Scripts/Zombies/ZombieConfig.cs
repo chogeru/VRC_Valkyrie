@@ -18,4 +18,16 @@ public class ZombieConfig : UdonSharpBehaviour
 
     [Header("Score")]
     public int scoreValue = 10;
+
+    [Header("Voice Audio (optional)")]
+    [Tooltip("Played when this zombie spots/attacks a player.")]
+    public AudioClip[] attackClips;
+    [Tooltip("Played when this zombie takes damage but survives.")]
+    public AudioClip[] damageClips;
+    [Tooltip("Played once when this zombie dies.")]
+    public AudioClip[] deathClips;
+    [Tooltip("Random ambient grunt/breathing while chasing - optional flavor.")]
+    public AudioClip[] idleClips;
+    [Range(0f, 1f)]
+    public float idleClipChancePerRetarget = 0.15f;
 }
