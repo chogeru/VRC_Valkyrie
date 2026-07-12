@@ -17,12 +17,14 @@ public class PlayerHealthManager : UdonSharpBehaviour
     [Header("References")]
     public GameSettings settings;
     public HudController hud;
+    public AudioManager audioManager;
 
     [UdonSynced] private float syncedHealth = -1f;
     [UdonSynced] private int syncedScore;
     [UdonSynced] private int ownerPlayerId = -1;
 
     private bool isRespawning;
+    private float lastKnownHealthForSfx = -1f;
 
     // Called by PlayerDataRegistry.OnPlayerJoined on the joining player's
     // own client, once it finds this as the first free slot.
@@ -92,6 +94,26 @@ public class PlayerHealthManager : UdonSharpBehaviour
     {
         RefreshLocalHud();
         CheckLocalDeath();
+        CheckLocalHurtSfx();
+    }
+
+    // Damage is applied by the attacker's client (see ApplyDamage), so the
+    // "hurt"/"down" cue has to be raised here instead - the only place that
+    // reliably runs on the VICTIM's own client once the health change syncs.
+    private void CheckLocalHurtSfx()
+    {
+        VRCPlayerApi local = Networking.LocalPlayer;
+        if (local == null || local.playerId != ownerPlayerId)
+        {
+            lastKnownHealthForSfx = syncedHealth;
+            return;
+        }
+
+        if (lastKnownHealthForSfx >= 0f && syncedHealth < lastKnownHealthForSfx)
+        {
+            if (audioManager != null) audioManager.PlaySfx(syncedHealth <= 0f ? "PlayerDown" : "PlayerHurt");
+        }
+        lastKnownHealthForSfx = syncedHealth;
     }
 
     private void CheckLocalDeath()
@@ -104,6 +126,9 @@ public class PlayerHealthManager : UdonSharpBehaviour
         }
     }
 
+    // Dying pulls a player out of the fight entirely: heal them back up but
+    // send them to the lobby rather than dropping them back into battle.
+    // They rejoin the action by pressing GameStartButton again next round.
     public void RespawnLocalPlayer()
     {
         if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
@@ -114,9 +139,9 @@ public class PlayerHealthManager : UdonSharpBehaviour
         isRespawning = false;
 
         VRCPlayerApi local = Networking.LocalPlayer;
-        if (local != null && settings != null && settings.playerRespawnPoints.Length > 0)
+        if (local != null && settings != null && settings.lobbySpawnPoints.Length > 0)
         {
-            Transform rp = settings.playerRespawnPoints[Random.Range(0, settings.playerRespawnPoints.Length)];
+            Transform rp = settings.lobbySpawnPoints[Random.Range(0, settings.lobbySpawnPoints.Length)];
             local.TeleportTo(rp.position, rp.rotation);
         }
     }

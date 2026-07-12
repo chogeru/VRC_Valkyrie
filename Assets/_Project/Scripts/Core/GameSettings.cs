@@ -21,11 +21,14 @@ public class GameSettings : UdonSharpBehaviour
     [Header("Flow Timing")]
     public float startCountdownSeconds = 5f;
     public float victoryDisplayTime = 15f;
+    [Tooltip("How often (seconds) the master checks whether every claimed player slot has died, while a game is in progress.")]
+    public float gameOverCheckInterval = 2f;
+    public float gameOverDisplayTime = 10f;
 
     [Header("Locations")]
+    [Tooltip("Also used as the respawn destination when a player dies (see PlayerHealthManager.RespawnLocalPlayer) - dying sends you back to the lobby.")]
     public Transform[] lobbySpawnPoints;
     public Transform[] battleSpawnPoints;
-    public Transform[] playerRespawnPoints;
     public Transform[] zombieSpawnPoints;
 
     // Editor-only Scene view aid - never runs in the uploaded world (Udon
@@ -33,14 +36,12 @@ public class GameSettings : UdonSharpBehaviour
     // obvious at a glance which Transform belongs to which list.
     private static readonly Color LobbyColor = new Color(0.2f, 0.6f, 1f);
     private static readonly Color BattleColor = new Color(1f, 0.25f, 0.25f);
-    private static readonly Color RespawnColor = new Color(0.3f, 1f, 0.3f);
     private static readonly Color ZombieSpawnColor = new Color(1f, 0.6f, 0f);
 
     private void OnDrawGizmos()
     {
         DrawSpawnGizmos(lobbySpawnPoints, LobbyColor);
         DrawSpawnGizmos(battleSpawnPoints, BattleColor);
-        DrawSpawnGizmos(playerRespawnPoints, RespawnColor);
         DrawSpawnGizmos(zombieSpawnPoints, ZombieSpawnColor);
     }
 

@@ -17,24 +17,52 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
 
 シーンに空のGameObject `GameSettings` を作り `GameSettings.cs` を付ける。
 - `waves` に手順1のWaveConfigを順番に並べる
-- `lobbySpawnPoints` / `battleSpawnPoints` / `playerRespawnPoints` / `zombieSpawnPoints`
-  にそれぞれTransformを配置して登録
+- `lobbySpawnPoints` / `battleSpawnPoints` / `zombieSpawnPoints`
+  にそれぞれTransformを配置して登録（`lobbySpawnPoints`はゲーム開始時の
+  ロビー出現位置に加えて、**死亡時の帰還先**としても使われる）
 - `playerDataRegistry` は手順5で作る `PlayerDataRegistry` を指す
 
 ## 3. ロビー & 戦闘エリア
 
 - ロビー部屋（学校の一室）を作り、`lobbySpawnPoints` に対応する位置にTransformを置く
 - 戦闘エリア（教室アセットで校舎を組む）を作り、`battleSpawnPoints` /
-  `zombieSpawnPoints` / `playerRespawnPoints` を配置
+  `zombieSpawnPoints` を配置
 - 戦闘エリアの床にNavMeshをBake（Window > AI > Navigation）
 
 ## 4. GameManager / WaveManager / HudController
 
 - `GameManager` GameObjectを作り `GameManager.cs` を付与。`settings` / `waveManager` /
-  `hud` を後述の各GameObjectに紐付け
+  `hud` / `audioManager`（手順3bで作るAudioManager）を後述の各GameObjectに紐付け
 - `WaveManager` GameObjectを作り `WaveManager.cs` を付与。`settings` / `gameManager` /
-  `hud` / `zombiePool`（手順6のゾンビ配列）を紐付け
+  `hud` / `audioManager` / `zombiePool`（手順6のゾンビ配列）を紐付け
 - Canvas上にHUDを作り `HudController.cs` を付与、TextMeshProフィールドとPanelを配線
+
+## 3b. BGM・SFX（`AudioManager` — 追加しやすい設計）
+
+音楽・効果音を増やすたびにコードを書かずに済むよう、**名前とクリップのペア配列**で
+管理する専用ハブを用意した。
+
+1. 空のGameObject `AudioManager` を作り `AudioManager.cs` を付与
+2. 子に空のGameObjectを3つ作り、それぞれAudioSourceを付けて紐付ける:
+   - `musicSourceA` / `musicSourceB`（BGM用、Loop有効・クロスフェードで自動的に
+     切り替わる。2つ用意するのはフェード中に新旧2トラックを同時再生するため）
+   - `sfxSource`（グローバルな効果音用、Loop不要）
+3. `musicNames` / `musicClips` に好きな数だけBGMを登録（例: `Lobby`, `Battle`,
+   `Victory`）。`sfxNames` / `sfxClips` も同様に効果音を登録
+   （例: `CountdownStart`, `WaveStart`, `Victory`, `PlayerHurt`, `PlayerDown`）
+4. 新しいBGM/SFXを増やしたい時は、この配列に1行追加するだけでよい。
+   コード側は `audioManager.PlayMusic("名前")` / `audioManager.PlaySfx("名前")` を
+   呼ぶだけで、存在しない名前を指定した場合はConsoleに警告が出るだけで安全に無視される
+5. 現在コードから自動的に呼ばれるフック一覧（対応する名前を登録しておくこと）:
+   - `GameManager`: ロビー/戦闘/勝利への遷移で `PlayMusic("Lobby" / "Battle" /
+     "Victory")`、カウントダウン開始時に `PlaySfx("CountdownStart")`、勝利時に
+     `PlaySfx("Victory")`
+   - `WaveManager`: 各ウェーブ開始時に `PlaySfx("WaveStart")`
+   - `PlayerHealthManager`: 被弾時に `PlaySfx("PlayerHurt")`、HP0になった瞬間に
+     `PlaySfx("PlayerDown")`（本人のクライアントでのみ再生される）
+   - 銃の発砲音・リロード音・ゾンビの鳴き声など**位置に紐づく音**は従来通り
+     各オブジェクト個別のAudioSource（`Gun.fireSound`等）で再生され、この
+     AudioManagerは経由しない（3D音源として正しく聞こえるようにするため）
 
 ## 5. プレイヤーHP・スコア（事前配置プール方式）
 
@@ -43,7 +71,7 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
 本人のクライアントが自分で確保する**方式で実装している。
 
 1. 空のGameObject `PlayerSlot` を作り `PlayerHealthManager.cs` を付与
-   （`settings` / `hud` を紐付け）。これをワールドの最大人数分（例: 16〜32体）
+   （`settings` / `hud` / `audioManager` を紐付け）。これをワールドの最大人数分（例: 16〜32体）
    コピーしてシーンに並べる（`Player_00`, `Player_01`, ... のように）
    - 座標はどこでも良い（見た目を持たないデータ用オブジェクトのため）。
      まとめて1つの空GameObjectの子にしておくとHierarchyが整理される
@@ -191,9 +219,8 @@ VRのトリガー引きが自動的に同じイベントとして処理される
 
 | 色 | 対象 |
 |---|---|
-| 青 | `GameSettings.lobbySpawnPoints` |
+| 青 | `GameSettings.lobbySpawnPoints`（死亡時の帰還先も兼ねる） |
 | 赤 | `GameSettings.battleSpawnPoints` |
-| 緑 | `GameSettings.playerRespawnPoints` |
 | 橙 | `GameSettings.zombieSpawnPoints` |
 | 赤い半透明球（選択時） | `ZombieAI` の攻撃範囲(`attackRange`) |
 | 黄色い線（選択時） | `Gun` の射程(`range`)・スライド可動域 |
@@ -304,14 +331,42 @@ TextMeshProをそれぞれ追加して `HudController` に紐付けること。
 ## 9. VRCSceneDescriptor
 
 - `spawns` にロビーのデフォルトスポーン地点を設定
-- Player Objects に手順5のプレハブを登録（再掲・重要）
+  （このSDKバージョンには「Player Objects」欄は無い。手順5の
+  `PlayerDataRegistry`が同等の役割を担う）
+
+## ゲーム全体のフロー（一周）
+
+```
+ロビー（全員待機）
+  └─ 誰かが GameStartButton をインタラクト
+       └─ カウントダウン（SFX: CountdownStart）
+            └─ 戦闘エリアへ全員テレポート、WaveManagerがウェーブ開始（BGM: Battle）
+                 ├─ ゾンビを倒す → スコア加算 → 改造ショップで銃を強化
+                 ├─ 被弾してHP0 → 本人だけ即ロビーへ帰還・HP全回復
+                 │     （respawnDelay秒後。生き残ったプレイヤーは戦闘続行）
+                 ├─ 全ウェーブクリア → Victory（BGM/SFX: Victory）
+                 │     → victoryDisplayTime秒後、自動でロビーへ全員帰還
+                 └─ 参加中の全プレイヤーのHPが同時に0（全滅）→ Game Over
+                       （BGM/SFX: GameOver、WaveManagerのスポーンも停止）
+                       → gameOverDisplayTime秒後、自動でロビーへ全員帰還
+       └─ ロビーに戻ったら再度GameStartButtonで次のラウンドを開始できる
+```
+
+- 個人の死亡は「戦線離脱してロビーで回復して待つ」という扱いで、他の生存者は
+  戦闘を続けられる。全員が同時にHP0になった瞬間だけ全滅（Game Over）と判定される
+  （`GameManager`が`gameOverCheckInterval`秒ごとにマスターだけでチェック）
+- Victory/Game Overとも`ReturnToLobby`を呼ぶ点は共通で、次のラウンドへの
+  導線は同じ
 
 ## 動作確認のコツ
 
-- ClientSim または実機（2人以上）でロビー→GameStart→戦闘→ウェーブクリア→勝利→ロビー
-  復帰の一周を必ず確認する
+- ClientSim または実機（2人以上）で「ロビー→GameStart→戦闘→ウェーブクリア→
+  勝利→ロビー」の一周に加えて、「被弾してロビーに戻る」「全員死んでGame Over
+  になる」の2パターンも必ず確認する
 - ゾンビが動かない場合はNavMeshのBake漏れを疑う
 - ダメージが反映されない場合はOwnership（`Networking.SetOwner`）周りのログを確認
+- Game Overにならない場合は `GameSettings.playerDataRegistry` の紐付けと、
+  `PlayerDataRegistry.pool` に全プレイヤー分のスロットが登録されているか確認
 
 ## 拡張ポイント
 
@@ -319,3 +374,4 @@ TextMeshProをそれぞれ追加して `HudController` に紐付けること。
 - ウェーブを増やす/難易度調整: WaveConfigを増やす・数値を変えるだけ
 - ゾンビの種類を増やす: ZombieConfigを複製し、ZombieAIの`config`違いのプール
   グループを用意すれば拡張可能（現状は1種類構成）
+- BGM/SFXを増やす: `AudioManager`のNames/Clips配列に1行追加するだけ（3b節参照）

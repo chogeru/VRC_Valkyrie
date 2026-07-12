@@ -63,4 +63,26 @@ public class PlayerDataRegistry : UdonSharpBehaviour
         }
         return null;
     }
+
+    // Used by GameManager to detect a full team wipe (every claimed slot's
+    // health at 0) while a game is in progress, to trigger Game Over.
+    public int CountClaimedSlots()
+    {
+        int count = 0;
+        for (int i = 0; i < pool.Length; i++)
+        {
+            if (pool[i] != null && pool[i].GetOwnerPlayerId() != -1) count++;
+        }
+        return count;
+    }
+
+    public int CountAliveClaimedSlots()
+    {
+        int count = 0;
+        for (int i = 0; i < pool.Length; i++)
+        {
+            if (pool[i] != null && pool[i].GetOwnerPlayerId() != -1 && pool[i].GetHealth() > 0f) count++;
+        }
+        return count;
+    }
 }

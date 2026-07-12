@@ -24,6 +24,7 @@ public class HudController : UdonSharpBehaviour
     public GameObject lobbyPanel;
     public GameObject playingPanel;
     public GameObject victoryPanel;
+    public GameObject gameOverPanel;
 
     [Header("Toast Durations")]
     public float weaponTierToastDuration = 3f;
@@ -34,6 +35,7 @@ public class HudController : UdonSharpBehaviour
         if (lobbyPanel != null) lobbyPanel.SetActive(state == GameManager.STATE_LOBBY || state == GameManager.STATE_COUNTDOWN);
         if (playingPanel != null) playingPanel.SetActive(state == GameManager.STATE_PLAYING);
         if (victoryPanel != null) victoryPanel.SetActive(state == GameManager.STATE_VICTORY);
+        if (gameOverPanel != null) gameOverPanel.SetActive(state == GameManager.STATE_GAMEOVER);
 
         if (stateText != null)
         {
@@ -41,6 +43,7 @@ public class HudController : UdonSharpBehaviour
             else if (state == GameManager.STATE_COUNTDOWN) stateText.text = "Get ready!";
             else if (state == GameManager.STATE_PLAYING) stateText.text = "Fight!";
             else if (state == GameManager.STATE_VICTORY) stateText.text = "Victory!";
+            else if (state == GameManager.STATE_GAMEOVER) stateText.text = "Game Over...";
         }
     }
 
