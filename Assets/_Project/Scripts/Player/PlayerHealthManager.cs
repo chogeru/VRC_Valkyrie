@@ -122,7 +122,9 @@ public class PlayerHealthManager : UdonSharpBehaviour
         if (local != null && local.playerId == ownerPlayerId && syncedHealth <= 0f && !isRespawning)
         {
             isRespawning = true;
-            SendCustomEventDelayedSeconds(nameof(RespawnLocalPlayer), settings != null ? settings.respawnDelay : 5f);
+            float delay = settings != null ? settings.respawnDelay : 5f;
+            if (hud != null) hud.OnLocalDeathStart(delay);
+            SendCustomEventDelayedSeconds(nameof(RespawnLocalPlayer), delay);
         }
     }
 
@@ -137,6 +139,7 @@ public class PlayerHealthManager : UdonSharpBehaviour
         RequestSerialization();
         RefreshLocalHud();
         isRespawning = false;
+        if (hud != null) hud.OnLocalDeathEnd();
 
         VRCPlayerApi local = Networking.LocalPlayer;
         if (local != null && settings != null && settings.lobbySpawnPoints.Length > 0)

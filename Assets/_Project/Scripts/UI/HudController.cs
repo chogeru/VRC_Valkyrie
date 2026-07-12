@@ -26,9 +26,16 @@ public class HudController : UdonSharpBehaviour
     public GameObject victoryPanel;
     public GameObject gameOverPanel;
 
+    [Header("Death Overlay")]
+    public GameObject deathPanel;
+    public TextMeshProUGUI deathCountdownText;
+
     [Header("Toast Durations")]
     public float weaponTierToastDuration = 3f;
     public float shopMessageDuration = 2.5f;
+
+    private bool isLocalPlayerDead;
+    private float deathEndTime;
 
     public void OnGameStateChanged(int state)
     {
@@ -102,18 +109,41 @@ public class HudController : UdonSharpBehaviour
         if (shopMessageText != null) shopMessageText.gameObject.SetActive(false);
     }
 
+    // Called by PlayerHealthManager when the local player's own HP hits 0,
+    // so dying gives clear feedback instead of silently sitting at 0 HP
+    // until the respawn-to-lobby teleport fires.
+    public void OnLocalDeathStart(float respawnDelay)
+    {
+        isLocalPlayerDead = true;
+        deathEndTime = Time.time + Mathf.Max(0f, respawnDelay);
+        if (deathPanel != null) deathPanel.SetActive(true);
+    }
+
+    public void OnLocalDeathEnd()
+    {
+        isLocalPlayerDead = false;
+        if (deathPanel != null) deathPanel.SetActive(false);
+    }
+
     void Update()
     {
-        if (gameManager == null || countdownText == null) return;
-
-        if (gameManager.GetState() == GameManager.STATE_COUNTDOWN)
+        if (gameManager != null && countdownText != null)
         {
-            countdownText.gameObject.SetActive(true);
-            countdownText.text = Mathf.CeilToInt(Mathf.Max(0f, gameManager.GetCountdownRemaining())).ToString();
+            if (gameManager.GetState() == GameManager.STATE_COUNTDOWN)
+            {
+                countdownText.gameObject.SetActive(true);
+                countdownText.text = Mathf.CeilToInt(Mathf.Max(0f, gameManager.GetCountdownRemaining())).ToString();
+            }
+            else
+            {
+                countdownText.gameObject.SetActive(false);
+            }
         }
-        else
+
+        if (isLocalPlayerDead && deathCountdownText != null)
         {
-            countdownText.gameObject.SetActive(false);
+            float remaining = Mathf.Max(0f, deathEndTime - Time.time);
+            deathCountdownText.text = "You Died\nRespawning in " + Mathf.CeilToInt(remaining) + "...";
         }
     }
 }

@@ -36,6 +36,10 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
 - `WaveManager` GameObjectを作り `WaveManager.cs` を付与。`settings` / `gameManager` /
   `hud` / `audioManager` / `zombiePool`（手順6のゾンビ配列）を紐付け
 - Canvas上にHUDを作り `HudController.cs` を付与、TextMeshProフィールドとPanelを配線
+- `deathPanel` / `deathCountdownText` は死亡時（HP0）に表示される演出用。無いと
+  死亡してから`respawnDelay`秒間、画面上に何のフィードバックも出ないまま
+  ロビーへテレポートされるだけになるので、簡単な暗転パネル＋
+  「You Died / Respawning in N...」表示を用意しておくと体験が良くなる
 
 ## 3b. BGM・SFX（`AudioManager` — 追加しやすい設計）
 
@@ -171,7 +175,10 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
   - `muzzle` = 銃口のTransform
   - `settings` = GameSettings
   - `hud` = HudController（キル数によるティアアップ通知を出すため）
-- 弾薬箱には `AmmoPickup.cs`（Trigger Collider必須）
+- 弾薬箱には `AmmoPickup.cs`（Trigger Collider必須）。`pickupSound`は拾得音用の
+  AudioSourceで、`visual`（拾得後に非表示になる見た目オブジェクト）とは別の
+  常時アクティブな場所に置くこと（`visual`側に置くと再生前に非表示化されて
+  音が途切れる）
 
 ### スライド・チャージングハンドルのアニメーション（スクリプト駆動、任意）
 

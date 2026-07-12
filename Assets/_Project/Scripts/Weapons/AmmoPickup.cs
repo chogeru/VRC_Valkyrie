@@ -14,6 +14,8 @@ public class AmmoPickup : UdonSharpBehaviour
     [Header("References")]
     public GameObject visual;
     public Collider triggerCollider;
+    [Tooltip("Must NOT be on the 'visual' object - it gets disabled immediately, which would cut this off mid-playback.")]
+    public AudioSource pickupSound;
 
     private bool available = true;
 
@@ -25,6 +27,7 @@ public class AmmoPickup : UdonSharpBehaviour
 
         gun.AddReserveAmmo(ammoAmount);
         available = false;
+        if (pickupSound != null) pickupSound.Play();
         if (visual != null) visual.SetActive(false);
         if (triggerCollider != null) triggerCollider.enabled = false;
         SendCustomEventDelayedSeconds(nameof(Respawn), respawnCooldown);
