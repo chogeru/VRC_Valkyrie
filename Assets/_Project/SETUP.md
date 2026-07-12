@@ -19,7 +19,7 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
 - `waves` に手順1のWaveConfigを順番に並べる
 - `lobbySpawnPoints` / `battleSpawnPoints` / `playerRespawnPoints` / `zombieSpawnPoints`
   にそれぞれTransformを配置して登録
-- `playerHealthObjectPrefab` は手順5で作るプレイヤーHPプレハブを指す
+- `playerDataRegistry` は手順5で作る `PlayerDataRegistry` を指す
 
 ## 3. ロビー & 戦闘エリア
 
@@ -36,13 +36,27 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
   `hud` / `zombiePool`（手順6のゾンビ配列）を紐付け
 - Canvas上にHUDを作り `HudController.cs` を付与、TextMeshProフィールドとPanelを配線
 
-## 5. プレイヤーHP（Player Object）
+## 5. プレイヤーHP・スコア（事前配置プール方式）
 
-1. 空のプレハブ `PlayerHealthObject` を作り `PlayerHealthManager.cs` を付与
-   （`settings` / `hud` を紐付け）
-2. Hierarchy上の `VRCSceneDescriptor` を選択し、Inspectorの **Player Objects** リストに
-   このプレハブを登録する（★これを忘れるとプレイヤーごとのHPが機能しない）
-3. `GameSettings.playerHealthObjectPrefab` に同じプレハブを指定
+このVRChat SDKバージョン（3.7.6）には「Player Object」自動割り当て機能が無いため、
+プレイヤーごとのデータ（HP・スコア）は**事前にシーンへ配置したプールを、参加時に
+本人のクライアントが自分で確保する**方式で実装している。
+
+1. 空のGameObject `PlayerSlot` を作り `PlayerHealthManager.cs` を付与
+   （`settings` / `hud` を紐付け）。これをワールドの最大人数分（例: 16〜32体）
+   コピーしてシーンに並べる（`Player_00`, `Player_01`, ... のように）
+   - 座標はどこでも良い（見た目を持たないデータ用オブジェクトのため）。
+     まとめて1つの空GameObjectの子にしておくとHierarchyが整理される
+2. 空のGameObject `PlayerDataRegistry` を作り `PlayerDataRegistry.cs` を付与し、
+   `pool` 配列に手順1で並べた `PlayerHealthManager` を**全員分**登録する
+   （★人数分を超えて参加されると新規プレイヤーはHP/スコアが機能しないので、
+   余裕を持ったサイズにする。コンソールに警告ログが出るので不足時はすぐ分かる）
+3. `GameSettings.playerDataRegistry` に手順2のオブジェクトを指定
+4. 仕組み: プレイヤーが参加すると`OnPlayerJoined`が全クライアントで発火し、
+   **参加した本人のクライアントだけ**が空きスロットを探して`ClaimForLocalPlayer()`
+   で確保する（Ownershipを自分に移してHP/スコアを初期化）。退出時は
+   `OnPlayerLeft`から1秒後に、そのスロットの新オーナー（通常はマスター）が
+   `ReleaseSlot()`で解放し、次の参加者に再利用される
 
 ## 6. ゾンビ・プール
 

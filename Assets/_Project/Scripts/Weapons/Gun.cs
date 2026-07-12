@@ -216,11 +216,9 @@ public class Gun : UdonSharpBehaviour
     {
         if (amount <= 0) return;
         VRCPlayerApi local = Networking.LocalPlayer;
-        if (local == null || settings == null || settings.playerHealthObjectPrefab == null) return;
+        if (local == null || settings == null || settings.playerDataRegistry == null) return;
 
-        GameObject obj = local.GetPlayerObject(settings.playerHealthObjectPrefab);
-        if (obj == null) return;
-        PlayerHealthManager wallet = (PlayerHealthManager)obj.GetComponent(typeof(PlayerHealthManager));
+        PlayerHealthManager wallet = settings.playerDataRegistry.GetPlayerHealthManager(local);
         if (wallet != null) wallet.AddScore(amount);
     }
 
@@ -229,7 +227,7 @@ public class Gun : UdonSharpBehaviour
     public void TryUpgrade()
     {
         VRCPlayerApi local = Networking.LocalPlayer;
-        if (local == null || settings == null || settings.playerHealthObjectPrefab == null) return;
+        if (local == null || settings == null || settings.playerDataRegistry == null) return;
 
         if (tier >= MaxTier)
         {
@@ -238,9 +236,7 @@ public class Gun : UdonSharpBehaviour
         }
 
         int cost = GetUpgradeCost(tier + 1);
-        GameObject obj = local.GetPlayerObject(settings.playerHealthObjectPrefab);
-        if (obj == null) return;
-        PlayerHealthManager wallet = (PlayerHealthManager)obj.GetComponent(typeof(PlayerHealthManager));
+        PlayerHealthManager wallet = settings.playerDataRegistry.GetPlayerHealthManager(local);
         if (wallet == null) return;
 
         if (!wallet.TrySpendScore(cost))

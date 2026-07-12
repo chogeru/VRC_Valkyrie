@@ -15,8 +15,8 @@ public class GameSettings : UdonSharpBehaviour
     public float playerMaxHealth = 100f;
     public float respawnDelay = 5f;
     public bool friendlyFireEnabled = false;
-    [Tooltip("Must be the same prefab registered in the VRC Scene Descriptor's Player Objects list.")]
-    public GameObject playerHealthObjectPrefab;
+    [Tooltip("The scene's PlayerDataRegistry - looks up each player's PlayerHealthManager (health/score wallet).")]
+    public PlayerDataRegistry playerDataRegistry;
 
     [Header("Flow Timing")]
     public float startCountdownSeconds = 5f;

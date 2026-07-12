@@ -2,13 +2,15 @@ using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
 
-// Register this prefab's root GameObject in the VRC Scene Descriptor's
-// "Player Objects" list so VRChat auto-spawns exactly one instance per
-// player. Doubles as the player's wallet: score earned from zombie kills is
-// spent at a WeaponUpgradeStation to tier up whichever gun is held.
-// Damage/score are applied by whoever triggered them (they briefly take
-// ownership to legally write the synced fields), while respawn/teleport and
-// spending are always executed by the owning player's own client.
+// One entry in PlayerDataRegistry.pool - a pre-placed (NOT instantiated at
+// runtime) slot that gets claimed by a joining player's own client via
+// ClaimForLocalPlayer(). This SDK version has no automatic "Player Object"
+// feature, so per-player data has to be handled with a manually-claimed
+// pool instead. Doubles as the player's wallet: score earned from zombie
+// kills is spent at a WeaponUpgradeStation to tier up whichever gun is
+// held. Damage/score are applied by whoever triggered them (they briefly
+// take ownership to legally write the synced fields), while respawn/
+// teleport/claim/release are always executed by the owning client.
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class PlayerHealthManager : UdonSharpBehaviour
 {
@@ -22,16 +24,30 @@ public class PlayerHealthManager : UdonSharpBehaviour
 
     private bool isRespawning;
 
-    void Start()
+    // Called by PlayerDataRegistry.OnPlayerJoined on the joining player's
+    // own client, once it finds this as the first free slot.
+    public void ClaimForLocalPlayer()
     {
-        if (Networking.IsOwner(gameObject))
-        {
-            ownerPlayerId = Networking.LocalPlayer != null ? Networking.LocalPlayer.playerId : -1;
-            syncedHealth = settings != null ? settings.playerMaxHealth : 100f;
-            syncedScore = 0;
-            RequestSerialization();
-        }
+        if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
+
+        ownerPlayerId = Networking.LocalPlayer != null ? Networking.LocalPlayer.playerId : -1;
+        syncedHealth = settings != null ? settings.playerMaxHealth : 100f;
+        syncedScore = 0;
+        isRespawning = false;
+        RequestSerialization();
         RefreshLocalHud();
+    }
+
+    // Called by PlayerDataRegistry.ProcessPendingRelease, only actually
+    // acts if this client currently owns the slot (VRChat auto-transfers
+    // ownership of a departed player's objects to the master).
+    public void ReleaseSlot()
+    {
+        if (!Networking.IsOwner(gameObject)) return;
+        ownerPlayerId = -1;
+        syncedHealth = -1f;
+        syncedScore = 0;
+        RequestSerialization();
     }
 
     // Called directly (local call) by whatever hit this player.

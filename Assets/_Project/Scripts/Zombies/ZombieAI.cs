@@ -181,10 +181,8 @@ public class ZombieAI : UdonSharpBehaviour
         PlayRandomClip(config.attackClips);
         TriggerAttackLunge();
 
-        if (settings == null || settings.playerHealthObjectPrefab == null) return;
-        GameObject obj = player.GetPlayerObject(settings.playerHealthObjectPrefab);
-        if (obj == null) return;
-        PlayerHealthManager health = (PlayerHealthManager)obj.GetComponent(typeof(PlayerHealthManager));
+        if (settings == null || settings.playerDataRegistry == null) return;
+        PlayerHealthManager health = settings.playerDataRegistry.GetPlayerHealthManager(player);
         if (health != null) health.ApplyDamage(config.attackDamage);
     }
 
