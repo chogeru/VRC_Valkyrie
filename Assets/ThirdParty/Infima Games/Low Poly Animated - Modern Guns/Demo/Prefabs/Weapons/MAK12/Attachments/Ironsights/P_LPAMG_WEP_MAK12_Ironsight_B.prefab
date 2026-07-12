@@ -1,0 +1,117 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &4676191155097981783
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1927007462115400597, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_Name
+      value: P_LPAMG_WEP_MAK12_Ironsight_B
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_RootOrder
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5992773841420476515, guid: 2696212f5de5d3146803442f3ee9e72c,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 2696212f5de5d3146803442f3ee9e72c, type: 3}
+--- !u!1 &6510850496265849026 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1927007462115400597, guid: 2696212f5de5d3146803442f3ee9e72c,
+    type: 3}
+  m_PrefabInstance: {fileID: 4676191155097981783}
+  m_PrefabAsset: {fileID: 0}
+--- !u!23 &1255998024227426981 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 5875817180315730418, guid: 2696212f5de5d3146803442f3ee9e72c,
+    type: 3}
+  m_PrefabInstance: {fileID: 4676191155097981783}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &-7155478908544557109
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6510850496265849026}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9fcc5006ceac22c45b89fe92eb337fd5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  links:
+  - Body
+  - Dot
+  meshRenderer: {fileID: 1255998024227426981}
+--- !u!114 &5286186173356303185
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6510850496265849026}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5b351fc719e31f4982dcb1511240d9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  offset: {x: 0, y: 0, z: 0}
+  fadeWhenNotAiming: 0
+  fadeMaterial: {fileID: 0}
+  fadeIndex: 0
+  hideWhenScopeEquipped: 1
+  attachmentRenderer: {fileID: 1255998024227426981}

@@ -1,0 +1,38 @@
+﻿//Copyright 2022, Infima Games. All Rights Reserved.
+
+using UnityEngine;
+
+namespace InfimaGames.Animated.ModernGuns
+{
+    /// <summary>
+    /// Audio Manager Service Interface.
+    /// </summary>
+    public interface IAudioManagerService : IGameService
+    {
+        #region METHODS
+        
+        /// <summary>
+        /// Plays a one shot of the AudioClip.
+        /// </summary>
+        /// <param name="clip">Clip to play.</param>
+        /// <param name="settings">Audio Settings.</param>
+        void PlayOneShot(AudioClip clip, AudioSettings settings = default);
+        
+        /// <summary>
+        /// Plays a one shot of the AudioClip.
+        /// </summary>
+        /// <param name="clips">Clips to play.</param>
+        /// <param name="settings">Audio Settings.</param>
+        void PlayOneShot(AudioClip[] clips, AudioSettings settings = default);
+
+        /// <summary>
+        /// Plays a one shot of the AudioClip, but waits for <paramref name="delay"/> before doing so.
+        /// </summary>
+        /// <param name="clip">Clip to play.</param>
+        /// <param name="settings">Audio settings to use for this sound.</param>
+        /// <param name="delay">Time to wait before we start playing this AudioClip.</param>
+        void PlayOneShotDelayed(AudioClip clip, AudioSettings settings = default, float delay = 1.0f);
+        
+        #endregion
+    }
+}

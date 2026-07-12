@@ -1,0 +1,117 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &587360442751488771
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 2184278758091041918, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_Name
+      value: P_LPAMG_WEP_AG14W_Ironsight_F
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_RootOrder
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7228337434789947284, guid: 737810463af8b3d40a784736827115b0,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 737810463af8b3d40a784736827115b0, type: 3}
+--- !u!1 &1618662264303468413 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2184278758091041918, guid: 737810463af8b3d40a784736827115b0,
+    type: 3}
+  m_PrefabInstance: {fileID: 587360442751488771}
+  m_PrefabAsset: {fileID: 0}
+--- !u!23 &4390314161020414914 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 3804202763478153409, guid: 737810463af8b3d40a784736827115b0,
+    type: 3}
+  m_PrefabInstance: {fileID: 587360442751488771}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &-543639182433081474
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1618662264303468413}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5b351fc719e31f4982dcb1511240d9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  offset: {x: 0, y: 0, z: 0}
+  fadeWhenNotAiming: 0
+  fadeMaterial: {fileID: 0}
+  fadeIndex: 0
+  hideWhenScopeEquipped: 1
+  attachmentRenderer: {fileID: 4390314161020414914}
+--- !u!114 &3172397685352046085
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1618662264303468413}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9fcc5006ceac22c45b89fe92eb337fd5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  links:
+  - Body
+  - Dot
+  meshRenderer: {fileID: 4390314161020414914}

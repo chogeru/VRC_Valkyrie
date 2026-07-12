@@ -1,0 +1,86 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &8717466590524848612
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 4080882263814320483, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: audioClipsFire.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4080882263814320483, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: audioClipsFire.Array.data[0]
+      value: 
+      objectReference: {fileID: 8300000, guid: 531e1d00b3c81b640bb726aa35b6147f, type: 3}
+    - target: {fileID: 4080882263814320483, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: audioClipsFire.Array.data[1]
+      value: 
+      objectReference: {fileID: 8300000, guid: ced9e64efe8a2e243a69b7b6b7b10806, type: 3}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_RootOrder
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8285349990337623377, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8768694600109682667, guid: 009d3b382b2dcca408c2174ca12dc59e,
+        type: 3}
+      propertyPath: m_Name
+      value: P_LPAMG_WEP_MR22_Muzzle_Silencer_01_Viewmodel
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 009d3b382b2dcca408c2174ca12dc59e, type: 3}
