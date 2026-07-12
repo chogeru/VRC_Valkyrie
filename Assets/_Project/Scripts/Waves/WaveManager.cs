@@ -67,7 +67,7 @@ public class WaveManager : UdonSharpBehaviour
         spawnedThisWave = 0;
         RequestSerialization();
         ApplyWaveStartedLocal();
-        SendCustomEventDelayedSeconds(nameof(SpawnNextZombie), 0.5f);
+        SendCustomEventDelayedSeconds(nameof(SpawnNextZombie), currentWave.firstSpawnDelay);
     }
 
     public void SpawnNextZombie()

@@ -11,6 +11,8 @@ public class WaveConfig : UdonSharpBehaviour
     [Header("Spawns")]
     public int zombieCount = 10;
     public float spawnInterval = 1.5f;
+    [Tooltip("Delay before the first zombie of this wave spawns, after the wave officially starts.")]
+    public float firstSpawnDelay = 0.5f;
 
     [Header("Difficulty Scaling")]
     public float healthMultiplier = 1f;

@@ -375,6 +375,34 @@ TextMeshProをそれぞれ追加して `HudController` に紐付けること。
 - Game Overにならない場合は `GameSettings.playerDataRegistry` の紐付けと、
   `PlayerDataRegistry.pool` に全プレイヤー分のスロットが登録されているか確認
 
+### VRChatアップロード前チェックリスト（実機での動作に直結する項目）
+
+ClientSimはネットワーク同期の細かい挙動までは再現しないため、**Ownership絡みの
+処理（ダメージ・スコア・ティア強化）は必ず実機2人以上でテストする**こと。特に
+以下は見落としやすい:
+
+1. **Gunの`hitMask`（レイヤー）**: 既定は`Everything`。銃を持っている本人の
+   アバター自身のコライダーやピックアップ自身のコライダーにレイが当たると
+   自爆的に判定される場合があるため、`Player`レイヤーや`Pickup`用レイヤーを
+   `hitMask`から除外する設定を推奨（Project Settings > Physics で
+   Player/Pickup系レイヤーとの当たり判定を切るか、`hitMask`を
+   `Zombie` / `Default`など必要なレイヤーだけに絞る）
+2. **VRC Pickupの必須条件**: `Collider`（Trigger不可、実体のあるコライダー）と
+   `Rigidbody`が無いと掴めない。`WeaponSetupTool`の自動配線で両方付与されるが、
+   手動で銃を追加した場合は要確認
+3. **NavMeshAgentの`Base Offset`/`Radius`/`Height`**: ゾンビモデルの実際の
+   足元とズレていると、宙に浮いたり地面にめり込んだりする。`ZombieSetupTool`の
+   初期値はあくまで目安なので、実際のモデルを見て調整する
+4. **音声のSpatial Blend**: `AudioManager`のSFX/BGMは意図的に非3D
+   （UIに近い扱い）。ゾンビ・銃のAudioSourceは`Spatial Blend = 1`（3D）に
+   なっているか確認（VRでは特に3D/2Dの違いが没入感に直結する）
+5. **PlayerDataRegistry.poolのサイズ**: ワールドの想定最大人数を超えて人が
+   入ると、超過した分のプレイヤーはHP/スコアが機能しない
+   （Console警告で気づける）。余裕を持ったサイズにする
+6. **同期の遅延を考慮したテスト**: 「撃った瞬間死ぬはず」のようなシビアな
+   タイミング確認は、Wifi環境やインスタンスの人数によって体感が変わる。
+   数フレームの遅延は正常範囲
+
 ## 拡張ポイント
 
 - 銃の種類を増やす: WeaponConfigを複製するだけ（コード変更不要）

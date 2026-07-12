@@ -139,7 +139,7 @@ public class ZombieAI : UdonSharpBehaviour
     {
         if (Time.time >= nextRetargetTime)
         {
-            nextRetargetTime = Time.time + 1f;
+            nextRetargetTime = Time.time + Mathf.Max(0.05f, config.retargetInterval);
             targetPlayer = FindNearestPlayer();
             if (Random.value < config.idleClipChancePerRetarget) PlayRandomClip(config.idleClips);
         }
@@ -227,7 +227,7 @@ public class ZombieAI : UdonSharpBehaviour
         if (hitCollider != null) hitCollider.enabled = false;
         if (animator != null) animator.SetTrigger("Die");
         SendCustomNetworkEvent(NetworkEventTarget.All, nameof(NotifyWaveManagerOfDeath));
-        SendCustomEventDelayedSeconds(nameof(Deactivate), 3f);
+        SendCustomEventDelayedSeconds(nameof(Deactivate), config != null ? config.corpseLingerDuration : 3f);
     }
 
     // Broadcast so every client's WaveManager mirror decrements exactly once.

@@ -15,6 +15,10 @@ public class ZombieConfig : UdonSharpBehaviour
     public float attackDamage = 10f;
     public float attackRange = 1.6f;
     public float attackCooldown = 1.2f;
+    [Tooltip("How often (seconds) this zombie re-picks its nearest-player target.")]
+    public float retargetInterval = 1f;
+    [Tooltip("How long the corpse stays visible/active after death before the pool slot is freed for reuse.")]
+    public float corpseLingerDuration = 3f;
 
     [Header("Score")]
     public int scoreValue = 10;
