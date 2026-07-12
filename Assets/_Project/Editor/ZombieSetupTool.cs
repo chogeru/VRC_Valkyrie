@@ -42,19 +42,49 @@ public static class ZombieSetupTool
         Debug.Log("[ZombieSetupTool] Generated " + path + ". Assign voice clips (Assets/ThirdParty/Zombie Voices Audio Pack) and tune stats in the Inspector.");
     }
 
-    // Select a zombie model instance placed in the scene (e.g. a dragged-in
-    // copy of NewPunch's ShirtlessZombie_FREE prefab) and run this to wire
-    // it up as one pool entry. Duplicate the result N times for the pool.
+    // Works on either:
+    //  - a scene instance (e.g. a dragged-in copy of NewPunch's
+    //    ShirtlessZombie_FREE prefab placed in the Hierarchy), or
+    //  - the prefab ASSET itself selected in the Project window - in that
+    //    case the wiring is saved directly onto the prefab, so every future
+    //    (and already-placed, unmodified) instance gets it automatically.
     [MenuItem("Zombie Game/Zombies/2. Wire Selected GameObject As Zombie")]
     private static void WireSelectedAsZombie()
     {
-        GameObject go = Selection.activeGameObject;
-        if (go == null)
+        GameObject selected = Selection.activeGameObject;
+        if (selected == null)
         {
-            Debug.LogWarning("[ZombieSetupTool] Select a zombie model GameObject in the Hierarchy first.");
+            Debug.LogWarning("[ZombieSetupTool] Select a zombie model first - either a scene instance in the Hierarchy, or the prefab asset itself in the Project window.");
             return;
         }
 
+        if (PrefabUtility.IsPartOfPrefabAsset(selected))
+        {
+            string assetPath = AssetDatabase.GetAssetPath(selected);
+            GameObject contentsRoot = PrefabUtility.LoadPrefabContents(assetPath);
+            try
+            {
+                WireGameObject(contentsRoot);
+                PrefabUtility.SaveAsPrefabAsset(contentsRoot, assetPath);
+                Debug.Log("[ZombieSetupTool] Wired and saved directly onto the prefab asset at " + assetPath + ". Every instance you drag from it (and already-placed unmodified instances) now has this wiring.");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(contentsRoot);
+            }
+        }
+        else
+        {
+            WireGameObject(selected);
+            EditorUtility.SetDirty(selected);
+            Debug.Log("[ZombieSetupTool] Wired '" + selected.name + "' (scene instance only - select the prefab asset in the Project window instead if you want this saved onto the prefab itself).");
+        }
+
+        Debug.Log("[ZombieSetupTool] Now: assign ZombieAI.config (a ZombieConfig), ZombieAI.settings (GameSettings), ZombieAI.waveManager, add a VRC Object Sync (or Continuous transform sync), then duplicate/place this for the rest of the pool and register every instance in WaveManager.zombiePool.");
+    }
+
+    private static void WireGameObject(GameObject go)
+    {
         if (go.GetComponent<Collider>() == null)
         {
             CapsuleCollider capsule = go.AddComponent<CapsuleCollider>();
@@ -92,9 +122,6 @@ public static class ZombieSetupTool
 
         // Pooled zombies stay inactive until WaveManager activates them.
         go.SetActive(false);
-
-        EditorUtility.SetDirty(go);
-        Debug.Log("[ZombieSetupTool] Wired NavMeshAgent + Collider + AudioSource + ZombieAI on '" + go.name + "'. Now: assign ZombieAI.config (a ZombieConfig), ZombieAI.settings (GameSettings), ZombieAI.waveManager, add a VRC Object Sync (or Continuous transform sync), then duplicate this GameObject for the rest of the pool and register every instance in WaveManager.zombiePool.");
     }
 
     [MenuItem("Zombie Game/Zombies/3. Bake NavMesh For Current Scene")]

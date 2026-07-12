@@ -190,16 +190,46 @@ public static class WeaponSetupTool
         Object.DestroyImmediate(go);
     }
 
+    // Works on either a scene instance, or the prefab ASSET itself selected
+    // in the Project window (saved directly onto the prefab in that case -
+    // see ZombieSetupTool.WireSelectedAsZombie for the same pattern).
     [MenuItem("Zombie Game/Weapons/2. Wire Selected GameObject As Gun")]
     private static void WireSelectedAsGun()
     {
-        GameObject go = Selection.activeGameObject;
-        if (go == null)
+        GameObject selected = Selection.activeGameObject;
+        if (selected == null)
         {
-            Debug.LogWarning("[WeaponSetupTool] Select a weapon GameObject in the Hierarchy first (e.g. a duplicated Infima weapon prefab instance placed in your scene).");
+            Debug.LogWarning("[WeaponSetupTool] Select a weapon model first - either a scene instance in the Hierarchy, or the prefab asset itself in the Project window.");
             return;
         }
 
+        if (PrefabUtility.IsPartOfPrefabAsset(selected))
+        {
+            string assetPath = AssetDatabase.GetAssetPath(selected);
+            GameObject contentsRoot = PrefabUtility.LoadPrefabContents(assetPath);
+            try
+            {
+                WireGameObject(contentsRoot);
+                PrefabUtility.SaveAsPrefabAsset(contentsRoot, assetPath);
+                Debug.Log("[WeaponSetupTool] Wired and saved directly onto the prefab asset at " + assetPath + ".");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(contentsRoot);
+            }
+        }
+        else
+        {
+            WireGameObject(selected);
+            EditorUtility.SetDirty(selected);
+            Debug.Log("[WeaponSetupTool] Wired '" + selected.name + "' (scene instance only - select the prefab asset in the Project window instead if you want this saved onto the prefab itself).");
+        }
+
+        Debug.Log("[WeaponSetupTool] Now in the Inspector: assign Gun.config (a WeaponConfig from " + WeaponDataFolder + "), Gun.settings (GameSettings), and Gun.muzzle (an empty child Transform placed at the barrel tip).");
+    }
+
+    private static void WireGameObject(GameObject go)
+    {
         if (go.GetComponent<Collider>() == null)
         {
             Debug.LogWarning("[WeaponSetupTool] " + go.name + " has no Collider. VRC Pickup requires one to be grabbable - add one before testing.");
@@ -221,9 +251,6 @@ public static class WeaponSetupTool
         {
             go.AddComponent<Gun>();
         }
-
-        EditorUtility.SetDirty(go);
-        Debug.Log("[WeaponSetupTool] Wired VRCPickup + Gun on '" + go.name + "'. Now in the Inspector: assign Gun.config (a WeaponConfig from " + WeaponDataFolder + "), Gun.settings (GameSettings), and Gun.muzzle (an empty child Transform placed at the barrel tip).");
     }
 
     private static void EnsureFolder(string path)

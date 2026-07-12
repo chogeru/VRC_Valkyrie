@@ -104,14 +104,28 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
 
 ### セットアップ手順（`Zombie Game > Zombies` メニューで自動化）
 
-1. `ShirtlessZombie_FREE.prefab` をシーンにドラッグ&ドロップしてインスタンス化
-2. そのGameObjectを選択した状態で `Zombie Game > Zombies > 2. Wire Selected
-   GameObject As Zombie` を実行すると、CapsuleCollider・NavMeshAgent・
-   AudioSource（3D）・`ZombieAI.cs` が自動付与され、末尾で非アクティブ化まで行われる
-   （プールは非アクティブ状態で待機させる仕様のため）
-3. Inspectorで `ZombieAI.config`（手順の`1. Generate Starter ZombieConfig`で
+`2. Wire Selected GameObject As Zombie` は**選択の仕方で挙動が変わる**:
+
+- **Projectウィンドウで`ShirtlessZombie_FREE.prefab`（アセットそのもの）を選択**
+  して実行 → プレハブ本体に直接保存される。既にシーンに配置済みの
+  インスタンス（未上書き分）にもこの変更が自動反映され、以後ドラッグする
+  コピーにも最初から付いてくる（**既存プレハブへのセットはこちらで可能**）
+- **シーン上のインスタンスを選択**して実行 → そのインスタンスだけに付与される
+  （プレハブ本体には影響しない）
+
+どちらでもCapsuleCollider・NavMeshAgent・AudioSource（3D）・`ZombieAI.cs`が
+自動付与され、末尾で非アクティブ化まで行われる（プールは非アクティブ状態で
+待機させる仕様のため）。
+
+1. Projectウィンドウで `ShirtlessZombie_FREE.prefab` を選択
+2. `Zombie Game > Zombies > 2. Wire Selected GameObject As Zombie` を実行
+   （プレハブ本体に保存される）
+3. シーンに配置 or 既存の配置済みインスタンスのInspectorで
+   `ZombieAI.config`（手順の`1. Generate Starter ZombieConfig`で
    生成される `ZombieConfig_Walker`）、`ZombieAI.settings`（GameSettings）、
    `ZombieAI.waveManager` を紐付ける
+   （プレハブ本体で共通のConfigを割り当てておけば、プールの全インスタンスに
+   一括反映される）
 4. **VRC Object Sync**（もしくはUdonBehaviourのSync SettingsでContinuous
    Position/Rotation）を追加
 5. 頭部に子Colliderを作り `ZombieHeadHitbox.cs` を付けるとヘッドショット倍率が有効になる
@@ -279,9 +293,12 @@ Editor内メニューで完結させる:
    ピストル/SMG/ショットガン/マシンピストル」という**推測**でアーキタイプを割り当てた
    仮の値なので、実際のモデル形状を見て名前や数値をInspectorで調整すること
 2. Infimaの武器プレハブ（例: `Assets/Infima Games/.../Prefabs/Weapons/AG14W/Variants/
-   P_LPAMG_WEP_AG14W_Full_Default_B.prefab`）をシーンにドラッグ&ドロップしてインスタンス化
-3. そのGameObjectを選択した状態でメニュー `Zombie Game > Weapons > 2. Wire Selected
-   GameObject As Gun` を実行すると、Rigidbody・VRCPickup・Gun.cs が自動で付与される
+   P_LPAMG_WEP_AG14W_Full_Default_B.prefab`）を選択
+3. **Projectウィンドウでプレハブアセットそのものを選択した状態**でメニュー
+   `Zombie Game > Weapons > 2. Wire Selected GameObject As Gun` を実行すると、
+   Rigidbody・VRCPickup・Gun.cs がプレハブ本体に直接保存される（既存の
+   プレハブに後から追加したい場合はこの方法でOK）。シーン上のインスタンスを
+   選択して実行した場合はそのコピーだけに付与される
 4. Inspectorで `Gun.config` に手順1で生成した対応するWeaponConfigを割り当て、
    `Gun.muzzle` には銃口位置に作成した空のTransformを、`Gun.settings` にはGameSettingsを
    割り当てる
