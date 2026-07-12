@@ -2673,7 +2673,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   BodyMaterials:
   - {fileID: 2100000, guid: 4cde5aac7288f054380fe768f78a0311, type: 2}
-  eyesGlow: 0
+  eyesGlow: 1
 --- !u!136 &1347140882599563918
 CapsuleCollider:
   m_ObjectHideFlags: 0
