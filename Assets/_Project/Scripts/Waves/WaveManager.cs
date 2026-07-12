@@ -70,11 +70,31 @@ public class WaveManager : UdonSharpBehaviour
             float healthMul = currentWave.healthMultiplier + (loopBonusCount * settings.finalWaveLoopHealthStep);
             z.Activate(sp.position, sp.rotation, healthMul, currentWave.moveSpeedMultiplier);
         }
+        else
+        {
+            // Pool exhausted (or no spawn points configured) - this slot will
+            // never spawn a zombie, so it can never send a death event either.
+            // Without this, syncedZombiesRemaining would get stuck above 0
+            // forever and the wave (and the whole game) could never advance.
+            HandleUnspawnableSlot();
+        }
 
         spawnedThisWave++;
         if (spawnedThisWave < currentWave.zombieCount)
         {
             SendCustomEventDelayedSeconds(nameof(SpawnNextZombie), currentWave.spawnInterval);
+        }
+    }
+
+    private void HandleUnspawnableSlot()
+    {
+        syncedZombiesRemaining = Mathf.Max(0, syncedZombiesRemaining - 1);
+        RequestSerialization();
+        if (hud != null) hud.OnZombiesRemainingChanged(syncedZombiesRemaining);
+
+        if (syncedZombiesRemaining <= 0 && spawnedThisWave + 1 >= currentWave.zombieCount)
+        {
+            SendCustomEventDelayedSeconds(nameof(StartNextWave), currentWave.intermissionAfterWave);
         }
     }
 
