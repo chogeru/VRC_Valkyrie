@@ -209,9 +209,11 @@ public static class WeaponSetupTool
             GameObject contentsRoot = PrefabUtility.LoadPrefabContents(assetPath);
             try
             {
-                WireGameObject(contentsRoot);
-                PrefabUtility.SaveAsPrefabAsset(contentsRoot, assetPath);
-                Debug.Log("[WeaponSetupTool] Wired and saved directly onto the prefab asset at " + assetPath + ".");
+                if (WireGameObject(contentsRoot))
+                {
+                    PrefabUtility.SaveAsPrefabAsset(contentsRoot, assetPath);
+                    Debug.Log("[WeaponSetupTool] Wired and saved directly onto the prefab asset at " + assetPath + ".");
+                }
             }
             finally
             {
@@ -220,16 +222,100 @@ public static class WeaponSetupTool
         }
         else
         {
-            WireGameObject(selected);
-            EditorUtility.SetDirty(selected);
-            Debug.Log("[WeaponSetupTool] Wired '" + selected.name + "' (scene instance only - select the prefab asset in the Project window instead if you want this saved onto the prefab itself).");
+            if (WireGameObject(selected))
+            {
+                EditorUtility.SetDirty(selected);
+                Debug.Log("[WeaponSetupTool] Wired '" + selected.name + "' (scene instance only - select the prefab asset in the Project window instead if you want this saved onto the prefab itself).");
+            }
         }
 
         Debug.Log("[WeaponSetupTool] Now in the Inspector: assign Gun.config (a WeaponConfig from " + WeaponDataFolder + "), Gun.settings (GameSettings), and Gun.muzzle (an empty child Transform placed at the barrel tip).");
     }
 
-    private static void WireGameObject(GameObject go)
+    // Scans every prefab under Assets/ThirdParty whose path contains
+    // "/Prefabs/Weapons/" - this subfolder name is consistent across the
+    // Infima and "Low Poly X Weapon Pack" packs and naturally excludes
+    // sibling Attachments/Bullets/Optics/UI folders. Already-wired prefabs
+    // (already has a Gun component) are skipped so this is safe to re-run.
+    [MenuItem("Zombie Game/Weapons/3. Auto-Wire ALL Known Weapon Prefabs")]
+    private static void AutoWireAllWeaponPrefabs()
     {
+        string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { ThirdPartyFolder });
+        int wired = 0;
+        int skipped = 0;
+
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (!path.Contains("/Prefabs/Weapons/")) continue;
+
+            GameObject contentsRoot = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                if (contentsRoot.GetComponent<Gun>() != null)
+                {
+                    skipped++;
+                    continue;
+                }
+                if (!WireGameObject(contentsRoot))
+                {
+                    Debug.LogWarning("[WeaponSetupTool] Skipped " + path + " - looked wrong for a weapon (see previous error).");
+                    continue;
+                }
+
+                PrefabUtility.SaveAsPrefabAsset(contentsRoot, path);
+                wired++;
+                Debug.Log("[WeaponSetupTool] Auto-wired: " + path);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(contentsRoot);
+            }
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log("[WeaponSetupTool] Auto-wire complete: " + wired + " prefab(s) wired, " + skipped + " already had Gun. " +
+            "Each still needs its own Gun.config (WeaponConfig) and Gun.muzzle assigned by hand in the Inspector - stats/muzzle position can't be guessed automatically.");
+    }
+
+    // One-click undo for accidentally running "Wire Selected GameObject As
+    // Gun" on the wrong object (e.g. Main Camera) before the Camera guard
+    // above existed. Select the polluted object and run this.
+    [MenuItem("Zombie Game/Weapons/Fix - Strip Gun/Pickup/Rigidbody From Selected")]
+    private static void StripWeaponComponentsFromSelected()
+    {
+        GameObject go = Selection.activeGameObject;
+        if (go == null)
+        {
+            Debug.LogWarning("[WeaponSetupTool] Select the polluted GameObject first (e.g. Main Camera).");
+            return;
+        }
+
+        Gun gun = go.GetComponent<Gun>();
+        if (gun != null) Object.DestroyImmediate(gun, true);
+
+        VRCPickup pickup = go.GetComponent<VRCPickup>();
+        if (pickup != null) Object.DestroyImmediate(pickup, true);
+
+        Rigidbody rb = go.GetComponent<Rigidbody>();
+        if (rb != null) Object.DestroyImmediate(rb, true);
+
+        EditorUtility.SetDirty(go);
+        Debug.Log("[WeaponSetupTool] Removed any Gun/VRCPickup/Rigidbody components from '" + go.name + "'.");
+    }
+
+    // Returns false (and logs why, without modifying anything) if the
+    // selection is clearly not a weapon model - guards against mistakes
+    // like running this on a Camera or other unrelated GameObject.
+    private static bool WireGameObject(GameObject go)
+    {
+        if (go.GetComponentInChildren<Camera>(true) != null)
+        {
+            Debug.LogError("[WeaponSetupTool] Refusing to wire '" + go.name + "' - it has a Camera component, which is never a weapon model. Select the correct weapon prefab/instance instead.");
+            return false;
+        }
+
         if (go.GetComponent<Collider>() == null)
         {
             Debug.LogWarning("[WeaponSetupTool] " + go.name + " has no Collider. VRC Pickup requires one to be grabbable - add one before testing.");
@@ -251,6 +337,8 @@ public static class WeaponSetupTool
         {
             go.AddComponent<Gun>();
         }
+
+        return true;
     }
 
     private static void EnsureFolder(string path)

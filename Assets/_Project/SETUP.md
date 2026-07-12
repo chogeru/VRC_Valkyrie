@@ -266,6 +266,44 @@ Editor内メニューで完結させる:
 3. 新しく追加するパック名は `WeaponSetupTool.cs` の `RawWeaponPackFolders` 配列に
    追記すれば同じ手順でインポート対象になる
 
+### 既存プレハブへの一括自動セットアップ
+
+一体ずつ選んで実行しなくても、`Assets/ThirdParty`配下の対象プレハブを
+まとめて自動配線できる:
+
+- `Zombie Game > Weapons > 3. Auto-Wire ALL Known Weapon Prefabs` —
+  パス中に`/Prefabs/Weapons/`を含む全プレハブ（Infima・Low Polyパック問わず、
+  Attachments/Bullets/Optics/UIフォルダは自然に除外される）に
+  Rigidbody・VRCPickup・Gun.csを一括付与し、プレハブ本体に直接保存する。
+  既にGunが付いているものはスキップされるので何度実行しても安全
+- `Zombie Game > Zombies > 4. Auto-Wire ALL Known Zombie Prefabs` —
+  `Assets/ThirdParty/NewPunch`配下の全ゾンビキャラクタープレハブ
+  （`_BodyParts`や`_HDRP`/`_URP`サフィックス付きは自動的に除外）に
+  Collider・NavMeshAgent・AudioSource・ZombieAI.csを一括付与
+- どちらも**カメラを含むGameObjectには安全装置で自動的に付与を拒否**する
+  （誤って`Main Camera`などを選んだまま実行してしまった場合の事故防止）
+- 一括付与後も `Gun.config`/`muzzle` や `ZombieAI.config`/`settings`/
+  `waveManager` は個体差があるため手動での割り当てが必要
+
+### 誤操作からの復旧
+
+もし誤って `Main Camera` など無関係なオブジェクトに武器コンポーネントを
+付けてしまった場合（安全装置が入る前のバージョンで発生し得た）は、その
+オブジェクトを選択して `Zombie Game > Weapons > Fix - Strip Gun/Pickup/
+Rigidbody From Selected` を実行すれば、付与された`Gun`/`VRCPickup`/
+`Rigidbody`だけを綺麗に取り除ける。
+
+### コンパイルエラーが出た場合（Infima Games付属Demoスクリプト）
+
+`Assets/ThirdParty/Infima Games/.../Demo/Code/` 以下のスクリプトは、
+Infima独自のデモ用MonoBehaviour（C# 8構文の`??=`や再帰パターンを使用）で、
+VRChatのUdon互換のためプロジェクト全体がC# 7.3縛りになっているとコンパイル
+エラーになる。これらはどのみちUdon化されておらずVRChatでは動作しないため、
+**`Demo`フォルダ全体を`Demo~`にリネームしてUnityのインポート対象外にする**
+対応を既に行った（末尾`~`のフォルダはUnityが無視する慣習）。中身は削除して
+いないので、参考にしたい場合は`Demo~`を覗けば見られる。同様の症状が別の
+アセットで出た場合も、同じ手（`Assets`外への退避 or 末尾`~`リネーム）で対応する。
+
 ### 銃種ごとのデータ作成
 
 - `Zombie Game > Weapons > 1. Generate Starter WeaponConfigs` — Infima Gamesの

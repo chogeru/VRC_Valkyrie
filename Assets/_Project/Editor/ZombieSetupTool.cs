@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEditor;
 using UnityEditor.AI;
 using UnityEngine;
@@ -64,9 +65,11 @@ public static class ZombieSetupTool
             GameObject contentsRoot = PrefabUtility.LoadPrefabContents(assetPath);
             try
             {
-                WireGameObject(contentsRoot);
-                PrefabUtility.SaveAsPrefabAsset(contentsRoot, assetPath);
-                Debug.Log("[ZombieSetupTool] Wired and saved directly onto the prefab asset at " + assetPath + ". Every instance you drag from it (and already-placed unmodified instances) now has this wiring.");
+                if (WireGameObject(contentsRoot))
+                {
+                    PrefabUtility.SaveAsPrefabAsset(contentsRoot, assetPath);
+                    Debug.Log("[ZombieSetupTool] Wired and saved directly onto the prefab asset at " + assetPath + ". Every instance you drag from it (and already-placed unmodified instances) now has this wiring.");
+                }
             }
             finally
             {
@@ -75,16 +78,76 @@ public static class ZombieSetupTool
         }
         else
         {
-            WireGameObject(selected);
-            EditorUtility.SetDirty(selected);
-            Debug.Log("[ZombieSetupTool] Wired '" + selected.name + "' (scene instance only - select the prefab asset in the Project window instead if you want this saved onto the prefab itself).");
+            if (WireGameObject(selected))
+            {
+                EditorUtility.SetDirty(selected);
+                Debug.Log("[ZombieSetupTool] Wired '" + selected.name + "' (scene instance only - select the prefab asset in the Project window instead if you want this saved onto the prefab itself).");
+            }
         }
 
         Debug.Log("[ZombieSetupTool] Now: assign ZombieAI.config (a ZombieConfig), ZombieAI.settings (GameSettings), ZombieAI.waveManager, add a VRC Object Sync (or Continuous transform sync), then duplicate/place this for the rest of the pool and register every instance in WaveManager.zombiePool.");
     }
 
-    private static void WireGameObject(GameObject go)
+    // Scans every prefab under Assets/ThirdParty/NewPunch for full zombie
+    // characters (skips body-part/prop sub-prefabs and HDRP/URP variants,
+    // since this project is Built-in Render Pipeline). Already-wired
+    // prefabs (has a ZombieAI already) are skipped, so safe to re-run.
+    [MenuItem("Zombie Game/Zombies/4. Auto-Wire ALL Known Zombie Prefabs")]
+    private static void AutoWireAllZombiePrefabs()
     {
+        string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/ThirdParty/NewPunch" });
+        int wired = 0;
+        int skipped = 0;
+
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (!path.Contains("/Prefabs/")) continue;
+
+            string fileName = Path.GetFileNameWithoutExtension(path);
+            if (fileName.Contains("BodyParts")) continue; // separated limb/prop pieces, not a full character
+            if (fileName.EndsWith("_HDRP") || fileName.EndsWith("_URP")) continue; // this project is Built-in RP
+
+            GameObject contentsRoot = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                if (contentsRoot.GetComponent<ZombieAI>() != null)
+                {
+                    skipped++;
+                    continue;
+                }
+                if (!WireGameObject(contentsRoot))
+                {
+                    Debug.LogWarning("[ZombieSetupTool] Skipped " + path + " - looked wrong for a zombie (see previous error).");
+                    continue;
+                }
+
+                PrefabUtility.SaveAsPrefabAsset(contentsRoot, path);
+                wired++;
+                Debug.Log("[ZombieSetupTool] Auto-wired: " + path);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(contentsRoot);
+            }
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log("[ZombieSetupTool] Auto-wire complete: " + wired + " prefab(s) wired, " + skipped + " already had ZombieAI. " +
+            "Each still needs ZombieAI.config/settings/waveManager assigned by hand, plus a VRC Object Sync component.");
+    }
+
+    // Returns false (and logs why, without modifying anything) if the
+    // selection is clearly not a zombie model.
+    private static bool WireGameObject(GameObject go)
+    {
+        if (go.GetComponentInChildren<Camera>(true) != null)
+        {
+            Debug.LogError("[ZombieSetupTool] Refusing to wire '" + go.name + "' - it has a Camera component, which is never a zombie model. Select the correct zombie prefab/instance instead.");
+            return false;
+        }
+
         if (go.GetComponent<Collider>() == null)
         {
             CapsuleCollider capsule = go.AddComponent<CapsuleCollider>();
@@ -122,6 +185,7 @@ public static class ZombieSetupTool
 
         // Pooled zombies stay inactive until WaveManager activates them.
         go.SetActive(false);
+        return true;
     }
 
     [MenuItem("Zombie Game/Zombies/3. Bake NavMesh For Current Scene")]
