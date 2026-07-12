@@ -75,6 +75,38 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
 8. 戦闘エリアの床にNavMeshが無ければ `Zombie Game > Zombies > 3. Bake NavMesh
    For Current Scene` で焼く（Window > AI > Navigationからでも可）
 
+### アニメーション
+
+このモデルのFBXには走行アニメーション（`FreeRunning`）が1つ入っているだけで、
+待機・攻撃・死亡モーションは同梱されていない。そのため以下の方針にした:
+
+- **移動**: `Zombie Game > Zombies > 4. Build Locomotion Animator Controller
+  From Selected FBX` を実行（`ShirtlessZombie_FREE.fbx` を選択した状態、または
+  Animator+Avatarを持つシーン上のインスタンスでもOK）すると、
+  `Assets/_Project/Data/Zombies/ZombieLocomotion.controller` が生成され、
+  中に入っている走行クリップをループ再生する1ステートのControllerになる。
+  生成後、ゾンビプレハブの `Animator` コンポーネントの `Controller` 欄に
+  割り当てる
+- **攻撃・死亡**: 対応する既製アニメーションが無いため、`ZombieAI.cs`が
+  **スクリプトだけで**簡易モーションを再現する（`Gun.cs`のスライドアニメと
+  同じ考え方のLerpベースの手続き型アニメーション）:
+  - 攻撃時: `ZombieAI.visualRoot`（任意）を前後にラウンジさせる。既定では
+    未割り当てなら何もしない（NavMeshAgentが動かしているルートTransformを
+    直接動かすと喧嘩するため）。ラウンジを使いたい場合はモデルの階層を
+    「ルート(Collider/NavMeshAgent) → 子(見た目メッシュ一式=visualRoot)」の
+    形に組み替えてから割り当てる
+  - 死亡時: ルートTransform自体を`deathCollapseLocalRotationEuler`分だけ倒し、
+    `deathSinkDistance`分だけ沈める（死亡と同時にNavMeshAgentを無効化する
+    ので、ルートを直接動かしても衝突しない）。全クライアントで同時に見える
+    （`syncedDead`フラグの同期で駆動されるため）
+  - 各種の時間・移動量は `ZombieAI` のInspectorから調整可能
+
+より作り込んだアニメーション一式（待機/攻撃/被弾/死亡モーション付き）が
+欲しい場合は、`ZombiesBundleV2`のリンク集にある他のゾンビパッケージ、または
+別途フルアニメーション付きのゾンビアセットを導入し、Animator Controllerに
+ステートを追加してから `animator.SetTrigger("Die")` 等と噛み合わせる形に
+拡張できる（`ZombieAI.cs`側は変更不要）。
+
 ### ゾンビのボイス（`Assets/ThirdParty/Zombie Voices Audio Pack`）
 
 1. ゾンビのプレハブ（プール1体分）に `AudioSource` を追加し、`ZombieAI.voiceAudioSource`
