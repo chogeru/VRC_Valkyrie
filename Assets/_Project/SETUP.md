@@ -46,15 +46,34 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
 
 ## 6. ゾンビ・プール
 
-- ゾンビ用GameObject（Capsuleなどのプレースホルダー、または手持ちモデル）に:
-  - `NavMeshAgent`
-  - `Collider`
-  - `ZombieAI.cs`（`config` = 手順1のZombieConfig, `settings`, `waveManager` を紐付け）
-  - **VRC Object Sync**（もしくはUdonBehaviourのSync SettingsでContinuous Position/Rotation）
-  - 頭部に子Colliderを作り `ZombieHeadHitbox.cs` を付けるとヘッドショット倍率が有効になる
-- このGameObjectをコピーしてプール数分（同時出現数の上限）シーンに配置し、初期状態は
-  非アクティブにしておく
-- 全インスタンスを `WaveManager.zombiePool` 配列に登録
+### ゾンビモデル（`Assets/ThirdParty/NewPunch/ShirtlessZombieFree`）
+
+- `Prefabs/ShirtlessZombie_FREE.prefab`（Built-inプロジェクトなので `_HDRP` / `_URP`
+  サフィックス無しの素の版を使う。既にBuilt-in向けマテリアルが入っている）
+- 同梱の `ZombiesBundleV2/Zombies_Bundle_V2_Assets_Links.txt` は実体が無いリンク集
+  （Asset Storeの無料配布ページへのURLのみ）。追加のゾンビ種類が欲しい場合は
+  そこに載っている各パッケージを手動で取得する必要がある
+- `FreeZombie_EyesGlow.cs` は付属のEditor専用スクリプト（`OnValidate`のみ、
+  実行時には何もしない）なのでそのままで問題ない
+
+### セットアップ手順（`Zombie Game > Zombies` メニューで自動化）
+
+1. `ShirtlessZombie_FREE.prefab` をシーンにドラッグ&ドロップしてインスタンス化
+2. そのGameObjectを選択した状態で `Zombie Game > Zombies > 2. Wire Selected
+   GameObject As Zombie` を実行すると、CapsuleCollider・NavMeshAgent・
+   AudioSource（3D）・`ZombieAI.cs` が自動付与され、末尾で非アクティブ化まで行われる
+   （プールは非アクティブ状態で待機させる仕様のため）
+3. Inspectorで `ZombieAI.config`（手順の`1. Generate Starter ZombieConfig`で
+   生成される `ZombieConfig_Walker`）、`ZombieAI.settings`（GameSettings）、
+   `ZombieAI.waveManager` を紐付ける
+4. **VRC Object Sync**（もしくはUdonBehaviourのSync SettingsでContinuous
+   Position/Rotation）を追加
+5. 頭部に子Colliderを作り `ZombieHeadHitbox.cs` を付けるとヘッドショット倍率が有効になる
+6. このGameObjectをコピーしてプール数分（同時出現数の上限）シーンに配置する
+   （手順2のツールは非アクティブ化するので、複製してそのまま並べればOK）
+7. 全インスタンスを `WaveManager.zombiePool` 配列に登録
+8. 戦闘エリアの床にNavMeshが無ければ `Zombie Game > Zombies > 3. Bake NavMesh
+   For Current Scene` で焼く（Window > AI > Navigationからでも可）
 
 ### ゾンビのボイス（`Assets/ThirdParty/Zombie Voices Audio Pack`）
 
