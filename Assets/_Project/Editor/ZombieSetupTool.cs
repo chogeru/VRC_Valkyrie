@@ -100,7 +100,7 @@ public static class ZombieSetupTool
     [MenuItem("Zombie Game/Zombies/3. Bake NavMesh For Current Scene")]
     private static void BakeNavMesh()
     {
-        NavMeshBuilder.BuildNavMesh();
+        UnityEditor.AI.NavMeshBuilder.BuildNavMesh();
         Debug.Log("[ZombieSetupTool] NavMesh baked for the active scene.");
     }
 
