@@ -1,0 +1,169 @@
+fileFormatVersion: 2
+guid: edc2a7af07565c9429aa83b3bb35d88e
+timeCreated: 1555664333
+licenseType: Store
+ModelImporter:
+  serializedVersion: 19
+  fileIDToRecycleName:
+    100000: door_b_09_01
+    100002: door_b_09_02
+    100004: door_b_09_03
+    100006: door_b_09_04
+    100008: door_b_09_05
+    100010: door_b_09_06
+    100012: door_b_09_07
+    100014: door_b_09_08
+    100016: door_b_09_09
+    100018: door_b_09_10
+    100020: door_b_09_11
+    100022: door_b_09_12
+    100024: door_b_09_13
+    100026: door_b_09_14
+    100028: door_b_09_15
+    100030: door_b_09_16
+    100032: door_b_09_17
+    100034: door_b_09_18
+    100036: //RootNode
+    100038: shoecupboard_b_09
+    400000: door_b_09_01
+    400002: door_b_09_02
+    400004: door_b_09_03
+    400006: door_b_09_04
+    400008: door_b_09_05
+    400010: door_b_09_06
+    400012: door_b_09_07
+    400014: door_b_09_08
+    400016: door_b_09_09
+    400018: door_b_09_10
+    400020: door_b_09_11
+    400022: door_b_09_12
+    400024: door_b_09_13
+    400026: door_b_09_14
+    400028: door_b_09_15
+    400030: door_b_09_16
+    400032: door_b_09_17
+    400034: door_b_09_18
+    400036: //RootNode
+    400038: shoecupboard_b_09
+    2300000: door_b_09_01
+    2300002: door_b_09_02
+    2300004: door_b_09_03
+    2300006: door_b_09_04
+    2300008: door_b_09_05
+    2300010: door_b_09_06
+    2300012: door_b_09_07
+    2300014: door_b_09_08
+    2300016: door_b_09_09
+    2300018: door_b_09_10
+    2300020: door_b_09_11
+    2300022: door_b_09_12
+    2300024: door_b_09_13
+    2300026: door_b_09_14
+    2300028: door_b_09_15
+    2300030: door_b_09_16
+    2300032: door_b_09_17
+    2300034: door_b_09_18
+    2300036: shoecupboard_b_09
+    3300000: door_b_09_01
+    3300002: door_b_09_02
+    3300004: door_b_09_03
+    3300006: door_b_09_04
+    3300008: door_b_09_05
+    3300010: door_b_09_06
+    3300012: door_b_09_07
+    3300014: door_b_09_08
+    3300016: door_b_09_09
+    3300018: door_b_09_10
+    3300020: door_b_09_11
+    3300022: door_b_09_12
+    3300024: door_b_09_13
+    3300026: door_b_09_14
+    3300028: door_b_09_15
+    3300030: door_b_09_16
+    3300032: door_b_09_17
+    3300034: door_b_09_18
+    3300036: shoecupboard_b_09
+    4300000: shoecupboard_b_09
+    4300002: door_b_09_01
+    4300004: door_b_09_02
+    4300006: door_b_09_03
+    4300008: door_b_09_04
+    4300010: door_b_09_05
+    4300012: door_b_09_06
+    4300014: door_b_09_07
+    4300016: door_b_09_08
+    4300018: door_b_09_09
+    4300020: door_b_09_10
+    4300022: door_b_09_11
+    4300024: door_b_09_12
+    4300026: door_b_09_13
+    4300028: door_b_09_14
+    4300030: door_b_09_15
+    4300032: door_b_09_16
+    4300034: door_b_09_17
+    4300036: door_b_09_18
+    9500000: //RootNode
+  materials:
+    importMaterials: 1
+    materialName: 0
+    materialSearch: 1
+  animations:
+    legacyGenerateAnimations: 4
+    bakeSimulation: 0
+    resampleRotations: 1
+    optimizeGameObjects: 0
+    motionNodeName: 
+    animationImportErrors: 
+    animationImportWarnings: 
+    animationRetargetingWarnings: 
+    animationDoRetargetingWarnings: 0
+    animationCompression: 1
+    animationRotationError: 0.5
+    animationPositionError: 0.5
+    animationScaleError: 0.5
+    animationWrapMode: 0
+    extraExposedTransformPaths: []
+    clipAnimations: []
+    isReadable: 1
+  meshes:
+    lODScreenPercentages: []
+    globalScale: 1
+    meshCompression: 0
+    addColliders: 0
+    importBlendShapes: 1
+    swapUVChannels: 0
+    generateSecondaryUV: 0
+    useFileUnits: 1
+    optimizeMeshForGPU: 1
+    keepQuads: 0
+    weldVertices: 1
+    secondaryUVAngleDistortion: 8
+    secondaryUVAreaDistortion: 15.000001
+    secondaryUVHardAngle: 88
+    secondaryUVPackMargin: 4
+    useFileScale: 1
+  tangentSpace:
+    normalSmoothAngle: 60
+    normalImportMode: 0
+    tangentImportMode: 3
+  importAnimation: 1
+  copyAvatar: 0
+  humanDescription:
+    human: []
+    skeleton: []
+    armTwist: 0.5
+    foreArmTwist: 0.5
+    upperLegTwist: 0.5
+    legTwist: 0.5
+    armStretch: 0.05
+    legStretch: 0.05
+    feetSpacing: 0
+    rootMotionBoneName: 
+    hasTranslationDoF: 0
+  lastHumanDescriptionAvatarSource: {instanceID: 0}
+  animationType: 0
+  humanoidOversampling: 1
+  additionalBone: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -1,0 +1,159 @@
+fileFormatVersion: 2
+guid: 19920826eeffe684d8bc8e8f5baa9168
+timeCreated: 1555664252
+licenseType: Store
+ModelImporter:
+  serializedVersion: 19
+  fileIDToRecycleName:
+    100000: door_a_05_01
+    100002: door_a_05_02
+    100004: door_a_05_03
+    100006: door_a_05_04
+    100008: door_a_05_05
+    100010: door_a_05_06
+    100012: door_a_05_07
+    100014: door_a_05_08
+    100016: door_a_05_09
+    100018: door_a_05_10
+    100020: door_a_05_11
+    100022: door_a_05_12
+    100024: door_a_05_13
+    100026: door_a_05_14
+    100028: door_a_05_15
+    100030: door_a_05_16
+    100032: //RootNode
+    100034: shoecupboard_a_05
+    400000: door_a_05_01
+    400002: door_a_05_02
+    400004: door_a_05_03
+    400006: door_a_05_04
+    400008: door_a_05_05
+    400010: door_a_05_06
+    400012: door_a_05_07
+    400014: door_a_05_08
+    400016: door_a_05_09
+    400018: door_a_05_10
+    400020: door_a_05_11
+    400022: door_a_05_12
+    400024: door_a_05_13
+    400026: door_a_05_14
+    400028: door_a_05_15
+    400030: door_a_05_16
+    400032: //RootNode
+    400034: shoecupboard_a_05
+    2300000: door_a_05_01
+    2300002: door_a_05_02
+    2300004: door_a_05_03
+    2300006: door_a_05_04
+    2300008: door_a_05_05
+    2300010: door_a_05_06
+    2300012: door_a_05_07
+    2300014: door_a_05_08
+    2300016: door_a_05_09
+    2300018: door_a_05_10
+    2300020: door_a_05_11
+    2300022: door_a_05_12
+    2300024: door_a_05_13
+    2300026: door_a_05_14
+    2300028: door_a_05_15
+    2300030: door_a_05_16
+    2300032: shoecupboard_a_05
+    3300000: door_a_05_01
+    3300002: door_a_05_02
+    3300004: door_a_05_03
+    3300006: door_a_05_04
+    3300008: door_a_05_05
+    3300010: door_a_05_06
+    3300012: door_a_05_07
+    3300014: door_a_05_08
+    3300016: door_a_05_09
+    3300018: door_a_05_10
+    3300020: door_a_05_11
+    3300022: door_a_05_12
+    3300024: door_a_05_13
+    3300026: door_a_05_14
+    3300028: door_a_05_15
+    3300030: door_a_05_16
+    3300032: shoecupboard_a_05
+    4300000: shoecupboard_a_05
+    4300002: door_a_05_01
+    4300004: door_a_05_02
+    4300006: door_a_05_03
+    4300008: door_a_05_04
+    4300010: door_a_05_05
+    4300012: door_a_05_06
+    4300014: door_a_05_07
+    4300016: door_a_05_08
+    4300018: door_a_05_09
+    4300020: door_a_05_10
+    4300022: door_a_05_11
+    4300024: door_a_05_12
+    4300026: door_a_05_13
+    4300028: door_a_05_14
+    4300030: door_a_05_15
+    4300032: door_a_05_16
+    9500000: //RootNode
+  materials:
+    importMaterials: 1
+    materialName: 0
+    materialSearch: 1
+  animations:
+    legacyGenerateAnimations: 4
+    bakeSimulation: 0
+    resampleRotations: 1
+    optimizeGameObjects: 0
+    motionNodeName: 
+    animationImportErrors: 
+    animationImportWarnings: 
+    animationRetargetingWarnings: 
+    animationDoRetargetingWarnings: 0
+    animationCompression: 1
+    animationRotationError: 0.5
+    animationPositionError: 0.5
+    animationScaleError: 0.5
+    animationWrapMode: 0
+    extraExposedTransformPaths: []
+    clipAnimations: []
+    isReadable: 1
+  meshes:
+    lODScreenPercentages: []
+    globalScale: 1
+    meshCompression: 0
+    addColliders: 0
+    importBlendShapes: 1
+    swapUVChannels: 0
+    generateSecondaryUV: 0
+    useFileUnits: 1
+    optimizeMeshForGPU: 1
+    keepQuads: 0
+    weldVertices: 1
+    secondaryUVAngleDistortion: 8
+    secondaryUVAreaDistortion: 15.000001
+    secondaryUVHardAngle: 88
+    secondaryUVPackMargin: 4
+    useFileScale: 1
+  tangentSpace:
+    normalSmoothAngle: 60
+    normalImportMode: 0
+    tangentImportMode: 3
+  importAnimation: 1
+  copyAvatar: 0
+  humanDescription:
+    human: []
+    skeleton: []
+    armTwist: 0.5
+    foreArmTwist: 0.5
+    upperLegTwist: 0.5
+    legTwist: 0.5
+    armStretch: 0.05
+    legStretch: 0.05
+    feetSpacing: 0
+    rootMotionBoneName: 
+    hasTranslationDoF: 0
+  lastHumanDescriptionAvatarSource: {instanceID: 0}
+  animationType: 0
+  humanoidOversampling: 1
+  additionalBone: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
