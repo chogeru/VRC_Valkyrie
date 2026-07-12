@@ -36,4 +36,11 @@ public class AmmoPickup : UdonSharpBehaviour
         if (visual != null) visual.SetActive(true);
         if (triggerCollider != null) triggerCollider.enabled = true;
     }
+
+    // Editor-only Scene view aid (ignored by Udon at runtime).
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, 0.4f);
+    }
 }

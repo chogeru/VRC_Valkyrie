@@ -7,6 +7,10 @@ using VRC.SDKBase;
 // presses it, whichever Gun they're currently holding in either hand gets
 // offered a purchase of its next upgrade tier, paid from that player's
 // score (see PlayerHealthManager.TrySpendScore / Gun.TryUpgrade).
+//
+// Interact() and GetPickupInHand() are both platform-agnostic VRChat APIs:
+// Desktop's single virtual hand and VR's separate Left/Right controllers
+// are all covered by checking both hands below, no per-platform code needed.
 public class WeaponUpgradeStation : UdonSharpBehaviour
 {
     [Header("References")]
@@ -44,5 +48,12 @@ public class WeaponUpgradeStation : UdonSharpBehaviour
         }
 
         return null;
+    }
+
+    // Editor-only Scene view aid (ignored by Udon at runtime).
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawWireCube(transform.position, Vector3.one * 0.5f);
     }
 }

@@ -16,4 +16,11 @@ public class GameStartButton : UdonSharpBehaviour
             gameManager.SendCustomNetworkEvent(NetworkEventTarget.All, nameof(GameManager.RequestStartGame));
         }
     }
+
+    // Editor-only Scene view aid (ignored by Udon at runtime).
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireCube(transform.position, Vector3.one * 0.4f);
+    }
 }

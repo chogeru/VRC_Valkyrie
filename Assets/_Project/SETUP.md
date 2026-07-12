@@ -149,6 +149,45 @@ Lerpするだけの軽量実装）。どのモデルでも「動かしたい部�
 いずれも「見た目上動かしたい子オブジェクトのTransform」をInspectorにドラッグする
 だけで有効になる。モデルのローカル軸によって符号（+/-）を調整すること。
 
+### 命中エフェクト・装弾数UI（任意）
+
+- `Gun.impactEffect` — 弾が何かに当たった瞬間（ゾンビでも環境でも）に、その位置へ
+  移動して再生されるParticleSystem。1つのオブジェクトを使い回す実装（発砲毎に
+  Instantiateしない）なので、あらかじめ銃の子オブジェクトとして1個だけ配置し、
+  再生時間を1発分より短めに設定しておく
+- `Gun.ammoDisplayText` — 銃のグリップ横などに小さく置いた**3D TextMeshPro**
+  （CanvasのUIではなく`GameObject > 3D Object > Text - TextMeshPro`で作るワールド
+  空間テキスト）。「現在弾数 / 予備弾数」を発砲・リロード・弾薬拾得のたびに自動更新。
+  Desktop/VRどちらでも同じ見え方になる（画面固定UIではなく銃に物理的についている
+  テキストのため）
+
+### PC / VR 操作対応について
+
+`OnPickupUseDown`/`OnPickupUseUp`（発砲）と`Interact()`（改造ボタン・ゲーム開始
+ボタン・NPCなど）はVRChat SDKの統一入力イベントで、Desktopのクリック長押しと
+VRのトリガー引きが自動的に同じイベントとして処理される。`WeaponUpgradeStation.cs`
+の`GetPickupInHand`もLeft/Right両方の手を見ているため、VRのコントローラーは
+もちろんDesktopの単一仮想ハンドでも正しく持っている銃を検出できる。
+**つまりこのシステムは追加コード無しで両プラットフォーム対応済み。**
+
+### Scene View ギズモ
+
+設定を見やすくするため、主要スクリプトに`OnDrawGizmos`/`OnDrawGizmosSelected`を
+追加した（Editor専用、Udonの実行には一切影響しない）:
+
+| 色 | 対象 |
+|---|---|
+| 青 | `GameSettings.lobbySpawnPoints` |
+| 赤 | `GameSettings.battleSpawnPoints` |
+| 緑 | `GameSettings.playerRespawnPoints` |
+| 橙 | `GameSettings.zombieSpawnPoints` |
+| 赤い半透明球（選択時） | `ZombieAI` の攻撃範囲(`attackRange`) |
+| 黄色い線（選択時） | `Gun` の射程(`range`)・スライド可動域 |
+| 橙の線（選択時） | `Gun` のチャージングハンドル可動域 |
+| 黄緑のワイヤーキューブ | `GameStartButton` |
+| マゼンタのワイヤーキューブ | `WeaponUpgradeStation` |
+| 黄色いワイヤー球 | `AmmoPickup` |
+
 ### 未インポートの武器パック（Low Poly AR/Pistol/SMG/Shotgun/WWII等）
 
 `Assets/`直下に生の `.unitypackage` として置かれているだけの武器パックがある場合、

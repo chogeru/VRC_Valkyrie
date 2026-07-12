@@ -1,6 +1,7 @@
 using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
+using TMPro;
 
 // Attach to a weapon GameObject alongside a VRC Pickup component. Swap the
 // "config" reference to reuse this exact script for every weapon type
@@ -23,11 +24,16 @@ public class Gun : UdonSharpBehaviour
     public HudController hud;
     public Transform muzzle;
     public ParticleSystem muzzleFlash;
+    public ParticleSystem impactEffect;
     public AudioSource fireSound;
     public AudioSource reloadSound;
     public AudioSource emptySound;
     public AudioSource tierUpSound;
     public LayerMask hitMask = ~0;
+
+    [Header("Ammo Display (world-space text next to the weapon, works in Desktop and VR)")]
+    [Tooltip("Optional 3D TextMeshPro (not a Canvas UI) parented near the weapon body - shows 'current / reserve' ammo.")]
+    public TextMeshPro ammoDisplayText;
 
     [Header("Runtime (read-only, for debugging)")]
     public int currentAmmo;
@@ -76,6 +82,8 @@ public class Gun : UdonSharpBehaviour
 
         if (slide != null) slideRestLocalPos = slide.localPosition;
         if (chargingHandle != null) chargeRestLocalPos = chargingHandle.localPosition;
+
+        UpdateAmmoDisplay();
     }
 
     void Update()
@@ -84,6 +92,10 @@ public class Gun : UdonSharpBehaviour
         UpdateChargeAnim();
     }
 
+    // OnPickupUseDown/Up and Interact() (see WeaponUpgradeStation.cs) are
+    // VRChat's unified input events: a Desktop click-and-hold and a VR
+    // trigger-pull both fire these identically, so no per-platform branching
+    // is needed anywhere in this script.
     public override void OnPickupUseDown()
     {
         triggerHeld = true;
@@ -126,6 +138,7 @@ public class Gun : UdonSharpBehaviour
         nextFireTime = Time.time + (1f / Mathf.Max(0.01f, effectiveFireRate));
 
         currentAmmo--;
+        UpdateAmmoDisplay();
         FireShot();
 
         if (config.isAutomatic && triggerHeld)
@@ -156,6 +169,8 @@ public class Gun : UdonSharpBehaviour
         RaycastHit hit;
         if (Physics.Raycast(origin, dir, out hit, config.range, hitMask))
         {
+            PlayImpactEffect(hit.point, hit.normal);
+
             ZombieAI zombie = (ZombieAI)hit.collider.GetComponentInParent(typeof(ZombieAI));
             if (zombie != null)
             {
@@ -178,6 +193,21 @@ public class Gun : UdonSharpBehaviour
                 if (targetHealth != null) targetHealth.ApplyDamage(EffectiveDamage());
             }
         }
+    }
+
+    // Reuses a single pre-placed ParticleSystem (repositioned per shot)
+    // instead of Instantiating a new effect object every shot.
+    private void PlayImpactEffect(Vector3 point, Vector3 normal)
+    {
+        if (impactEffect == null) return;
+        impactEffect.transform.SetPositionAndRotation(point, Quaternion.LookRotation(normal));
+        impactEffect.Play();
+    }
+
+    private void UpdateAmmoDisplay()
+    {
+        if (ammoDisplayText == null) return;
+        ammoDisplayText.text = currentAmmo + " / " + reserveAmmo;
     }
 
     // The shooter is always the local player (firing is a local input
@@ -264,11 +294,13 @@ public class Gun : UdonSharpBehaviour
         reserveAmmo -= toLoad;
         isReloading = false;
         TriggerChargeCycle();
+        UpdateAmmoDisplay();
     }
 
     public void AddReserveAmmo(int amount)
     {
         reserveAmmo = Mathf.Min(config.reserveAmmoMax, reserveAmmo + amount);
+        UpdateAmmoDisplay();
     }
 
     public int GetTier() { return tier; }
@@ -340,6 +372,38 @@ public class Gun : UdonSharpBehaviour
                 chargeAnimating = false;
                 chargingHandle.localPosition = chargeRestLocalPos;
             }
+        }
+    }
+
+    // Editor-only Scene view aid (ignored by Udon at runtime).
+    private void OnDrawGizmosSelected()
+    {
+        if (config != null && muzzle != null)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawLine(muzzle.position, muzzle.position + muzzle.forward * config.range);
+        }
+
+        if (slide != null)
+        {
+            Gizmos.color = Color.cyan;
+            Vector3 restWorld = slide.position;
+            Vector3 backWorld = slide.parent != null
+                ? slide.parent.TransformPoint(slide.localPosition + slideBackOffset)
+                : slide.position + slideBackOffset;
+            Gizmos.DrawLine(restWorld, backWorld);
+            Gizmos.DrawWireSphere(backWorld, 0.01f);
+        }
+
+        if (chargingHandle != null)
+        {
+            Gizmos.color = new Color(1f, 0.5f, 0f);
+            Vector3 restWorld = chargingHandle.position;
+            Vector3 backWorld = chargingHandle.parent != null
+                ? chargingHandle.parent.TransformPoint(chargingHandle.localPosition + chargingHandleBackOffset)
+                : chargingHandle.position + chargingHandleBackOffset;
+            Gizmos.DrawLine(restWorld, backWorld);
+            Gizmos.DrawWireSphere(backWorld, 0.01f);
         }
     }
 }

@@ -27,4 +27,32 @@ public class GameSettings : UdonSharpBehaviour
     public Transform[] battleSpawnPoints;
     public Transform[] playerRespawnPoints;
     public Transform[] zombieSpawnPoints;
+
+    // Editor-only Scene view aid - never runs in the uploaded world (Udon
+    // ignores OnDrawGizmos). Color-codes every spawn-point array so it's
+    // obvious at a glance which Transform belongs to which list.
+    private static readonly Color LobbyColor = new Color(0.2f, 0.6f, 1f);
+    private static readonly Color BattleColor = new Color(1f, 0.25f, 0.25f);
+    private static readonly Color RespawnColor = new Color(0.3f, 1f, 0.3f);
+    private static readonly Color ZombieSpawnColor = new Color(1f, 0.6f, 0f);
+
+    private void OnDrawGizmos()
+    {
+        DrawSpawnGizmos(lobbySpawnPoints, LobbyColor);
+        DrawSpawnGizmos(battleSpawnPoints, BattleColor);
+        DrawSpawnGizmos(playerRespawnPoints, RespawnColor);
+        DrawSpawnGizmos(zombieSpawnPoints, ZombieSpawnColor);
+    }
+
+    private void DrawSpawnGizmos(Transform[] points, Color color)
+    {
+        if (points == null) return;
+        Gizmos.color = color;
+        foreach (Transform t in points)
+        {
+            if (t == null) continue;
+            Gizmos.DrawWireSphere(t.position, 0.3f);
+            Gizmos.DrawLine(t.position, t.position + t.forward * 0.6f); // facing direction
+        }
+    }
 }

@@ -306,4 +306,13 @@ public class ZombieAI : UdonSharpBehaviour
 
         if (t >= 1f) deathAnimating = false;
     }
+
+    // Editor-only Scene view aid (ignored by Udon at runtime).
+    private void OnDrawGizmosSelected()
+    {
+        if (config == null) return;
+
+        Gizmos.color = new Color(1f, 0f, 0f, 0.6f);
+        Gizmos.DrawWireSphere(transform.position, config.attackRange);
+    }
 }
