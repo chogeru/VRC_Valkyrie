@@ -62,7 +62,34 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
   - `config` = 手順1のWeaponConfig
   - `muzzle` = 銃口のTransform
   - `settings` = GameSettings
+  - `hud` = HudController（キル数によるティアアップ通知を出すため）
 - 弾薬箱には `AmmoPickup.cs`（Trigger Collider必須）
+
+### 未インポートの武器パック（Low Poly AR/Pistol/SMG/Shotgun/WWII等）
+
+`Assets/`直下に生の `.unitypackage` として置かれているだけの武器パックがある場合、
+まずインポートが必要。Unity Editorが既に開いているため外部からの二重起動はせず、
+Editor内メニューで完結させる:
+
+1. `Zombie Game > Weapons > 0. Import Raw Weapon Packages (URP)` — 各パックの
+   `_URP.unitypackage` を一括インポート（本プロジェクトはBuilt-in Render
+   Pipelineのため、マテリアルは後でシェーダーをStandard系に張り替える必要がある）
+2. インポート完了後（コンソールのImport進捗が終わってから）
+   `Zombie Game > Weapons > 0b. Move Imported Packs Into ThirdParty` を実行すると、
+   生の`.unitypackage`は`Assets/ThirdParty/_SourcePackages/`へ、展開されたフォルダは
+   `Assets/ThirdParty/`直下へ自動整理される
+3. 新しく追加するパック名は `WeaponSetupTool.cs` の `RawWeaponPackFolders` 配列に
+   追記すれば同じ手順でインポート対象になる
+
+### 銃種ごとのデータ作成
+
+- `Zombie Game > Weapons > 1. Generate Starter WeaponConfigs` — Infima Gamesの
+  AG14W/HVG7/LRAF9/MAK12/RC425/SP60/X13向けの仮WeaponConfigを生成
+- `Zombie Game > Weapons > 1b. Generate Category Archetype WeaponConfigs` — 新しく
+  追加したLow Poly AR/Pistol/SMG/Shotgun/WWIIパックはモデルごとの個別名が無いため、
+  「アサルトライフル/ピストル/SMG/ショットガン/ボルトアクションライフル」の
+  カテゴリ別アーキタイプとして生成される。実際に使うモデル1つにつき複製して
+  リネーム・調整する運用を想定
 
 ### Infima Games等のアセットストア製FPSパックを使う場合の注意
 
@@ -88,6 +115,48 @@ UdonSharpBehaviourなので、シーン上 or プレハブとして配置する�
    `Gun.muzzle` には銃口位置に作成した空のTransformを、`Gun.settings` にはGameSettingsを
    割り当てる
 5. Colliderが無ければ追加する（VRC Pickupで掴むために必須）
+
+## 7b. スコア & 改造ショップ（3段階強化）
+
+流れ: **ゾンビを倒す → スコア獲得 → 改造ショップの改造ボタンをインタラクト →
+持っている銃が1段階強化（最大3段階、段階が上がるほど必要スコアも増える）**。
+
+### スコア（プレイヤーのウォレット）
+
+- スコアは `PlayerHealthManager`（Player Object、手順5で作成済み）が保持する
+  （`syncedScore`、Networked Sync済み）
+- ゾンビを倒すと `ZombieConfig.scoreValue`（既定10点）が倒した本人に加算される
+  （`Gun.cs`が`ZombieAI.TakeDamage`の戻り値でキルを検知し、`PlayerHealthManager.AddScore`
+  を呼ぶ）
+- HUDのCanvasに `scoreText` 用TextMeshProを追加し `HudController.scoreText` に紐付けると
+  現在のスコアが表示される
+
+### 改造ショップ
+
+1. ロビーか戦闘エリアに「改造ボタン」用のGameObjectを置き、Collider +
+   `WeaponUpgradeStation.cs` を付与。`hud` にHudControllerを紐付ける
+2. プレイヤーが銃を手に持った状態でこのオブジェクトをインタラクトすると、
+   `WeaponUpgradeStation` が `player.GetPickupInHand()` で持っている銃を検出し、
+   `Gun.TryUpgrade()` を呼ぶ
+3. `Gun.TryUpgrade()` は次ティアの必要スコア（`WeaponConfig.tierUpgradeCost`）を
+   `PlayerHealthManager.TrySpendScore` でその場で消費し、成功すれば `Gun.tier` を+1する
+   （最大3、`Gun.MaxTier`）
+4. ティアは銃オブジェクト自体に同期保存されるため、他プレイヤーに渡っても引き継がれる
+
+`WeaponConfig` のInspectorで調整できる項目（すべて長さ3の配列 = tier1/2/3）:
+
+- `tierUpgradeCost`（既定 50 / 120 / 250 スコア） — 各段階を買うのに必要なスコア。
+  **段階が上がるほど値を大きくする**とご要望通りの「踏むごとに価格が上がる」挙動になる
+- `tierDamageMultiplier`（既定 1.15 / 1.35 / 1.6倍） — 威力
+- `tierFireRateMultiplier`（既定 1.1 / 1.25 / 1.45倍） — 連射速度
+- `tierMagazineSizeMultiplier`（既定 1.25 / 1.5 / 2倍） — 装弾数（弾数）
+- `tierReloadTimeMultiplier`（既定 0.9 / 0.8 / 0.65倍、小さいほど速い） — リロード速度
+
+ティアが上がると `HudController.OnWeaponTierChanged` が呼ばれ、`weaponTierText` に
+「〇〇 Tier N Up!」というトースト表示が数秒出る（`Gun.tierUpSound` を割り当てれば
+効果音も鳴る）。スコア不足・最大ティア到達・武器未所持のときは `shopMessageText` に
+理由が表示される。HUDのCanvas上に `weaponTierText` / `shopMessageText` 用の
+TextMeshProをそれぞれ追加して `HudController` に紐付けること。
 
 ## 8. スタートボタン
 

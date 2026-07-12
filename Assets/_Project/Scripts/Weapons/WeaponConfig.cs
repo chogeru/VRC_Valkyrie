@@ -23,4 +23,16 @@ public class WeaponConfig : UdonSharpBehaviour
     public int magazineSize = 12;
     public float reloadTime = 1.6f;
     public int reserveAmmoMax = 96;
+
+    [Header("Upgrade Shop (3 tiers, paid with score)")]
+    [Tooltip("Score cost to purchase tier 1/2/3 at the upgrade shop. Should increase each tier.")]
+    public int[] tierUpgradeCost = new int[] { 50, 120, 250 };
+    [Tooltip("Multiplies damagePerHit once a tier is reached.")]
+    public float[] tierDamageMultiplier = new float[] { 1.15f, 1.35f, 1.6f };
+    [Tooltip("Multiplies fireRate (higher = faster shooting).")]
+    public float[] tierFireRateMultiplier = new float[] { 1.1f, 1.25f, 1.45f };
+    [Tooltip("Multiplies magazineSize (higher = more rounds per mag).")]
+    public float[] tierMagazineSizeMultiplier = new float[] { 1.25f, 1.5f, 2f };
+    [Tooltip("Multiplies reloadTime (lower = faster reload).")]
+    public float[] tierReloadTimeMultiplier = new float[] { 0.9f, 0.8f, 0.65f };
 }

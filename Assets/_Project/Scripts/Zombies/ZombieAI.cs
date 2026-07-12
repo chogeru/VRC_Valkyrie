@@ -144,17 +144,22 @@ public class ZombieAI : UdonSharpBehaviour
     }
 
     // Called locally by whichever client's shot hit this zombie (see Gun.cs).
-    public void TakeDamage(float amount)
+    // Returns true if this hit was the killing blow, so the shooter's Gun
+    // can credit itself a kill for its tier-up progression.
+    public bool TakeDamage(float amount)
     {
-        if (!syncedActive || syncedDead) return;
+        if (!syncedActive || syncedDead) return false;
         if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
 
         syncedHealth -= amount;
+        bool killedByThisHit = false;
         if (syncedHealth <= 0f)
         {
+            killedByThisHit = true;
             Die();
         }
         RequestSerialization();
+        return killedByThisHit;
     }
 
     private void Die()

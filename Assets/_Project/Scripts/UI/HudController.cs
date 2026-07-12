@@ -16,11 +16,18 @@ public class HudController : UdonSharpBehaviour
     public TextMeshProUGUI countdownText;
     public TextMeshProUGUI stateText;
     public TextMeshProUGUI healthText;
+    public TextMeshProUGUI scoreText;
+    public TextMeshProUGUI weaponTierText;
+    public TextMeshProUGUI shopMessageText;
 
     [Header("Panels")]
     public GameObject lobbyPanel;
     public GameObject playingPanel;
     public GameObject victoryPanel;
+
+    [Header("Toast Durations")]
+    public float weaponTierToastDuration = 3f;
+    public float shopMessageDuration = 2.5f;
 
     public void OnGameStateChanged(int state)
     {
@@ -53,6 +60,43 @@ public class HudController : UdonSharpBehaviour
     public void OnLocalHealthChanged(float current, float max)
     {
         if (healthText != null) healthText.text = "HP: " + Mathf.CeilToInt(current) + " / " + Mathf.CeilToInt(max);
+    }
+
+    public void OnLocalScoreChanged(int score)
+    {
+        if (scoreText != null) scoreText.text = "Score: " + score;
+    }
+
+    // Called by Gun.cs whenever a weapon is upgraded at the shop.
+    public void OnWeaponTierChanged(string weaponName, int newTier)
+    {
+        if (weaponTierText == null) return;
+        if (newTier <= 0) return;
+
+        weaponTierText.text = weaponName + " Tier " + newTier + " Up!";
+        weaponTierText.gameObject.SetActive(true);
+        SendCustomEventDelayedSeconds(nameof(HideWeaponTierToast), weaponTierToastDuration);
+    }
+
+    public void HideWeaponTierToast()
+    {
+        if (weaponTierText != null) weaponTierText.gameObject.SetActive(false);
+    }
+
+    // Called by WeaponUpgradeStation.cs / Gun.cs for shop feedback
+    // (insufficient score, already max tier, no weapon held, etc).
+    public void ShowShopMessage(string message)
+    {
+        if (shopMessageText == null) return;
+
+        shopMessageText.text = message;
+        shopMessageText.gameObject.SetActive(true);
+        SendCustomEventDelayedSeconds(nameof(HideShopMessage), shopMessageDuration);
+    }
+
+    public void HideShopMessage()
+    {
+        if (shopMessageText != null) shopMessageText.gameObject.SetActive(false);
     }
 
     void Update()

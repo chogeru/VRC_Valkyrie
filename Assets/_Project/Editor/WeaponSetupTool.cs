@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 using VRC.SDK3.Components;
@@ -8,6 +9,123 @@ using VRC.SDK3.Components;
 public static class WeaponSetupTool
 {
     private const string WeaponDataFolder = "Assets/_Project/Data/Weapons";
+    private const string ThirdPartyFolder = "Assets/ThirdParty";
+    private const string SourcePackagesFolder = "Assets/ThirdParty/_SourcePackages";
+
+    // Raw ".unitypackage" files that were dropped straight into Assets root
+    // (not yet imported). Add new pack folder names here as they're added.
+    private static readonly string[] RawWeaponPackFolders = new string[]
+    {
+        "Low Poly AR Weapon Pack 1",
+        "Low Poly AR Weapon Pack 3",
+        "Low Poly Optic Pack 1",
+        "Low Poly Pistol Weapon Pack 1",
+        "Low Poly Pistol Weapon Pack 2",
+        "Low Poly SMG Weapon Pack 2",
+        "Low Poly SMG Weapon Pack 3",
+        "Low Poly ShotGun Weapon Pack 1",
+        "Low Poly ShotGun Weapon Pack 2",
+        "Low Poly Weapon Pack 4_WWII_1",
+    };
+
+    // Imports every "<Pack>_URP.unitypackage" found under the raw pack
+    // folders above, then moves the resulting content folder into
+    // Assets/ThirdParty and the source .unitypackage into
+    // Assets/ThirdParty/_SourcePackages so Assets root stays clean.
+    // Uses the URP shader variant; this project is Built-in Render Pipeline,
+    // so materials will need a shader pass afterward (see SETUP.md).
+    [MenuItem("Zombie Game/Weapons/0. Import Raw Weapon Packages (URP)")]
+    private static void ImportRawWeaponPackages()
+    {
+        EnsureFolder(ThirdPartyFolder);
+        EnsureFolder(SourcePackagesFolder);
+
+        int imported = 0;
+        foreach (string packFolder in RawWeaponPackFolders)
+        {
+            string sourceDir = "Assets/" + packFolder;
+            if (!AssetDatabase.IsValidFolder(sourceDir))
+            {
+                continue; // already imported/moved, or not present this project
+            }
+
+            string packageFile = FindUnityPackage(sourceDir, packFolder);
+            if (packageFile == null)
+            {
+                Debug.LogWarning("[WeaponSetupTool] No _URP.unitypackage found in " + sourceDir);
+                continue;
+            }
+
+            AssetDatabase.ImportPackage(packageFile, false);
+            imported++;
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+
+        if (imported > 0)
+        {
+            Debug.Log("[WeaponSetupTool] Imported " + imported + " weapon package(s). Run '0b. Move Imported Packs Into ThirdParty' next once Unity finishes importing.");
+        }
+        else
+        {
+            Debug.Log("[WeaponSetupTool] Nothing to import - either already imported, or no matching raw packages found at Assets root.");
+        }
+    }
+
+    // Run this after the import above has finished (importing can take a
+    // moment on large packs - watch the progress bar / console first).
+    [MenuItem("Zombie Game/Weapons/0b. Move Imported Packs Into ThirdParty")]
+    private static void MoveImportedPacksIntoThirdParty()
+    {
+        EnsureFolder(ThirdPartyFolder);
+        EnsureFolder(SourcePackagesFolder);
+
+        int moved = 0;
+        foreach (string packFolder in RawWeaponPackFolders)
+        {
+            string sourceDir = "Assets/" + packFolder;
+            if (!AssetDatabase.IsValidFolder(sourceDir)) continue;
+
+            // Move the raw .unitypackage file(s) out of the way first.
+            foreach (string pkg in Directory.GetFiles(sourceDir, "*.unitypackage"))
+            {
+                string pkgAssetPath = pkg.Replace('\\', '/');
+                string dest = SourcePackagesFolder + "/" + Path.GetFileName(pkgAssetPath);
+                if (AssetDatabase.LoadAssetAtPath<Object>(dest) == null)
+                {
+                    AssetDatabase.MoveAsset(pkgAssetPath, dest);
+                }
+            }
+
+            // If the import created a matching "Assets/<packFolder>" content
+            // tree alongside the raw package (same name), the folder already
+            // *is* sourceDir - just relocate the whole thing under ThirdParty.
+            if (Directory.GetDirectories(sourceDir).Length > 0)
+            {
+                string dest = ThirdPartyFolder + "/" + packFolder;
+                if (AssetDatabase.LoadAssetAtPath<Object>(dest) == null)
+                {
+                    string error = AssetDatabase.MoveAsset(sourceDir, dest);
+                    if (string.IsNullOrEmpty(error)) moved++;
+                    else Debug.LogWarning("[WeaponSetupTool] Could not move " + sourceDir + ": " + error);
+                }
+            }
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log("[WeaponSetupTool] Moved " + moved + " imported pack folder(s) into " + ThirdPartyFolder + ".");
+    }
+
+    private static string FindUnityPackage(string sourceDir, string packFolder)
+    {
+        string preferred = sourceDir + "/" + packFolder + "_URP.unitypackage";
+        if (File.Exists(preferred)) return preferred;
+
+        string[] any = Directory.GetFiles(sourceDir, "*_URP.unitypackage");
+        return any.Length > 0 ? any[0] : null;
+    }
 
     [MenuItem("Zombie Game/Weapons/1. Generate Starter WeaponConfigs")]
     private static void GenerateStarterConfigs()
@@ -27,6 +145,27 @@ public static class WeaponSetupTool
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         Debug.Log("[WeaponSetupTool] Generated starter WeaponConfig prefabs in " + WeaponDataFolder + ". Names/stats are best-guess placeholders - rename and retune in the Inspector to match the actual model.");
+    }
+
+    // The newer "Low Poly AR/Pistol/SMG/Shotgun/WWII" packs use generic mesh
+    // names per pack rather than one distinct codename per weapon, so these
+    // are generated as reusable category archetypes instead of guessing
+    // exact prefab names. Duplicate one of these per specific mesh you wire
+    // up and rename it (e.g. "WeaponConfig_AR_A_1").
+    [MenuItem("Zombie Game/Weapons/1b. Generate Category Archetype WeaponConfigs")]
+    private static void GenerateCategoryArchetypes()
+    {
+        EnsureFolder(WeaponDataFolder);
+
+        CreateConfig("AssaultRifle", "Category Archetype", isAutomatic: true, damage: 18f, headshotMul: 2f, fireRate: 8f, range: 60f, spread: 2.5f, mag: 30, reload: 2.0f, reserve: 180);
+        CreateConfig("Pistol", "Category Archetype", isAutomatic: false, damage: 25f, headshotMul: 2f, fireRate: 3f, range: 40f, spread: 1.0f, mag: 12, reload: 1.4f, reserve: 96);
+        CreateConfig("SMG", "Category Archetype", isAutomatic: true, damage: 14f, headshotMul: 2f, fireRate: 12f, range: 35f, spread: 3.0f, mag: 25, reload: 1.8f, reserve: 200);
+        CreateConfig("Shotgun", "Category Archetype", isAutomatic: false, damage: 70f, headshotMul: 1.5f, fireRate: 1.1f, range: 15f, spread: 6.0f, mag: 6, reload: 2.2f, reserve: 48);
+        CreateConfig("BoltActionRifle_WWII", "Category Archetype", isAutomatic: false, damage: 85f, headshotMul: 2.5f, fireRate: 0.8f, range: 100f, spread: 0.3f, mag: 5, reload: 2.8f, reserve: 40);
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log("[WeaponSetupTool] Generated category archetype WeaponConfig prefabs in " + WeaponDataFolder + ". Duplicate + rename one per specific weapon mesh.");
     }
 
     private static void CreateConfig(string codeName, string archetypeLabel, bool isAutomatic, float damage, float headshotMul, float fireRate, float range, float spread, int mag, float reload, int reserve)
