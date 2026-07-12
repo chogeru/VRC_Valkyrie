@@ -102,7 +102,9 @@ public static class ZombieSetupTool
         foreach (string guid in guids)
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
-            if (!path.Contains("/Prefabs/")) continue;
+            // Most NewPunch packs use a "Prefabs" folder, but some (e.g.
+            // BigZombie, GiantZombie) use the singular "Prefab" instead.
+            if (!path.Contains("/Prefabs/") && !path.Contains("/Prefab/")) continue;
 
             string fileName = Path.GetFileNameWithoutExtension(path);
             if (fileName.Contains("BodyParts")) continue; // separated limb/prop pieces, not a full character

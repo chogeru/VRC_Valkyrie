@@ -22,7 +22,7 @@ public class AmmoPickup : UdonSharpBehaviour
     private void OnTriggerEnter(Collider other)
     {
         if (!available) return;
-        Gun gun = (Gun)other.GetComponentInParent(typeof(Gun));
+        Gun gun = other.GetComponentInParent<Gun>();
         if (gun == null) return;
 
         gun.AddReserveAmmo(ammoAmount);

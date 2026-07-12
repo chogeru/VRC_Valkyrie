@@ -248,6 +248,12 @@ public static class WeaponSetupTool
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             if (!path.Contains("/Prefabs/Weapons/")) continue;
+            // Packs like Infima's "Low Poly Animated - Modern Guns" nest per-part
+            // Attachments/Bullets sub-prefabs (grips, muzzles, magazines, casings,
+            // shells...) inside the Weapons folder tree, so the substring check
+            // above alone still matches them - exclude those explicitly since
+            // they are never standalone pickup-able weapons.
+            if (path.Contains("/Attachments/") || path.Contains("/Bullets/")) continue;
 
             GameObject contentsRoot = PrefabUtility.LoadPrefabContents(path);
             try

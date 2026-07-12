@@ -36,14 +36,14 @@ public class WeaponUpgradeStation : UdonSharpBehaviour
         VRC_Pickup right = player.GetPickupInHand(VRC_Pickup.PickupHand.Right);
         if (right != null)
         {
-            Gun gun = (Gun)right.GetComponent(typeof(Gun));
+            Gun gun = right.GetComponent<Gun>();
             if (gun != null) return gun;
         }
 
         VRC_Pickup left = player.GetPickupInHand(VRC_Pickup.PickupHand.Left);
         if (left != null)
         {
-            Gun gun = (Gun)left.GetComponent(typeof(Gun));
+            Gun gun = left.GetComponent<Gun>();
             if (gun != null) return gun;
         }
 

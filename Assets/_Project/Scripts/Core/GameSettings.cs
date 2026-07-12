@@ -34,9 +34,9 @@ public class GameSettings : UdonSharpBehaviour
     // Editor-only Scene view aid - never runs in the uploaded world (Udon
     // ignores OnDrawGizmos). Color-codes every spawn-point array so it's
     // obvious at a glance which Transform belongs to which list.
-    private static readonly Color LobbyColor = new Color(0.2f, 0.6f, 1f);
-    private static readonly Color BattleColor = new Color(1f, 0.25f, 0.25f);
-    private static readonly Color ZombieSpawnColor = new Color(1f, 0.6f, 0f);
+    private readonly Color LobbyColor = new Color(0.2f, 0.6f, 1f);
+    private readonly Color BattleColor = new Color(1f, 0.25f, 0.25f);
+    private readonly Color ZombieSpawnColor = new Color(1f, 0.6f, 0f);
 
     private void OnDrawGizmos()
     {

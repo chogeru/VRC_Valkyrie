@@ -171,11 +171,11 @@ public class Gun : UdonSharpBehaviour
         {
             PlayImpactEffect(hit.point, hit.normal);
 
-            ZombieAI zombie = (ZombieAI)hit.collider.GetComponentInParent(typeof(ZombieAI));
+            ZombieAI zombie = hit.collider.GetComponentInParent<ZombieAI>();
             if (zombie != null)
             {
                 float dmg = EffectiveDamage();
-                ZombieHeadHitbox headHitbox = (ZombieHeadHitbox)hit.collider.GetComponent(typeof(ZombieHeadHitbox));
+                ZombieHeadHitbox headHitbox = hit.collider.GetComponent<ZombieHeadHitbox>();
                 if (headHitbox != null) dmg *= config.headshotMultiplier;
 
                 bool killedByThisShot = zombie.TakeDamage(dmg);
@@ -189,7 +189,7 @@ public class Gun : UdonSharpBehaviour
 
             if (settings != null && settings.friendlyFireEnabled)
             {
-                PlayerHealthManager targetHealth = (PlayerHealthManager)hit.collider.GetComponentInParent(typeof(PlayerHealthManager));
+                PlayerHealthManager targetHealth = hit.collider.GetComponentInParent<PlayerHealthManager>();
                 if (targetHealth != null) targetHealth.ApplyDamage(EffectiveDamage());
             }
         }
