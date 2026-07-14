@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git reset:*)",
+      "Bash(powershell -Command \"Get-Process | Where-Object { \\\\$_.Name -match 'git|unity|sourcetree|github|code' } | Select-Object Name, Id, Path | Format-Table -AutoSize\")",
+      "Bash(powershell -Command \"Get-Process | Where-Object { \\\\$_.Name -match 'git|GitHubDesktop' } | Select-Object Name, Id | Format-Table -AutoSize\")",
+      "Bash(powershell -Command \"Stop-Process -Id 38828 -Force; Stop-Process -Id 22036 -Force\")",
+      "Bash(git checkout:*)"
+    ]
+  }
+}
