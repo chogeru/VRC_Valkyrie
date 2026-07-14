@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &166206451953833206
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3855893664304976133}
+  m_Layer: 0
+  m_Name: ExactGun
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3855893664304976133
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 166206451953833206}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.50000006, y: -0.49999997, z: -0.49999997, w: 0.50000006}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3557320247793090291}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &320468712745320707
 GameObject:
   m_ObjectHideFlags: 0
@@ -625,6 +656,7 @@ Transform:
   - {fileID: 6229564456383013265}
   - {fileID: 821896605453764465}
   - {fileID: 244453420088117072}
+  - {fileID: 3855893664304976133}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &464600286817157761
@@ -668,11 +700,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   MomentumTransferMethod: 0
   DisallowTheft: 0
-  ExactGun: {fileID: 0}
+  ExactGun: {fileID: 3855893664304976133}
   ExactGrip: {fileID: 0}
   allowManipulationWhenEquipped: 0
-  orientation: 0
-  AutoHold: 0
+  orientation: 2
+  AutoHold: 1
   InteractionText: 
   UseText: Use
   useEventBroadcastType: 0

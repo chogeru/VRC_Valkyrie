@@ -582,6 +582,37 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &3655560437419445962
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5737287842191251323}
+  m_Layer: 0
+  m_Name: ExactGun
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5737287842191251323
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3655560437419445962}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.50000006, y: -0.49999997, z: -0.49999997, w: 0.50000006}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7820119542811928366}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4104925684464880439
 GameObject:
   m_ObjectHideFlags: 0
@@ -1042,6 +1073,7 @@ Transform:
   - {fileID: 3148728755632647349}
   - {fileID: 9111212990353811000}
   - {fileID: 7186742433898302161}
+  - {fileID: 5737287842191251323}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &2835079112007619490
@@ -1085,11 +1117,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   MomentumTransferMethod: 0
   DisallowTheft: 0
-  ExactGun: {fileID: 0}
+  ExactGun: {fileID: 5737287842191251323}
   ExactGrip: {fileID: 0}
   allowManipulationWhenEquipped: 0
-  orientation: 0
-  AutoHold: 0
+  orientation: 2
+  AutoHold: 1
   InteractionText: 
   UseText: Use
   useEventBroadcastType: 0

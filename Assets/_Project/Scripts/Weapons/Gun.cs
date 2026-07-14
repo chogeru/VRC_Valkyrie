@@ -63,6 +63,7 @@ public class Gun : UdonSharpBehaviour
     private bool triggerHeld;
     private float nextFireTime;
     private int lastAppliedTier = -1;
+    private bool ammoInitialized;
 
     private Vector3 slideRestLocalPos;
     private bool slideAnimating;
@@ -76,8 +77,7 @@ public class Gun : UdonSharpBehaviour
 
     void Start()
     {
-        currentAmmo = EffectiveMagazineSize();
-        reserveAmmo = config.reserveAmmoMax;
+        InitializeAmmo();
         lastAppliedTier = tier;
 
         if (slide != null) slideRestLocalPos = slide.localPosition;
@@ -90,6 +90,23 @@ public class Gun : UdonSharpBehaviour
     {
         UpdateSlideAnim();
         UpdateChargeAnim();
+    }
+
+    // config is a reference to a separate UdonBehaviour (WeaponConfig)
+    // whose own fields aren't guaranteed to be populated yet the moment
+    // this Gun's Start() runs (Udon does not guarantee cross-behaviour
+    // init order) - if that raced and magazineSize/reserveAmmoMax read as
+    // 0 here, retry lazily on first fire instead of leaving the gun
+    // permanently stuck on an empty magazine for the rest of the session.
+    private void InitializeAmmo()
+    {
+        // Check the raw config fields, not EffectiveMagazineSize() (which
+        // floors to a minimum of 1 and would mask config not being ready).
+        if (config.magazineSize <= 0 || config.reserveAmmoMax <= 0) return; // config not ready yet - try again later
+
+        currentAmmo = EffectiveMagazineSize();
+        reserveAmmo = config.reserveAmmoMax;
+        ammoInitialized = true;
     }
 
     // OnPickupUseDown/Up and Interact() (see WeaponUpgradeStation.cs) are
@@ -125,6 +142,7 @@ public class Gun : UdonSharpBehaviour
     private void TryFire()
     {
         if (isReloading) return;
+        if (!ammoInitialized) InitializeAmmo();
 
         if (currentAmmo <= 0)
         {

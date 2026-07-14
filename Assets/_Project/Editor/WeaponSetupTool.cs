@@ -2,6 +2,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 using VRC.SDK3.Components;
+using VRC.SDKBase;
 
 // Editor-only helpers (never included in the uploaded VRChat build).
 // Speeds up wiring third-party weapon models (e.g. Infima Games packs) onto
@@ -334,10 +335,12 @@ public static class WeaponSetupTool
             rb.isKinematic = false;
         }
 
-        if (go.GetComponent<VRCPickup>() == null)
+        VRCPickup pickup = go.GetComponent<VRCPickup>();
+        if (pickup == null)
         {
-            go.AddComponent<VRCPickup>();
+            pickup = go.AddComponent<VRCPickup>();
         }
+        ConfigurePickupOrientation(go, pickup);
 
         if (go.GetComponent<Gun>() == null)
         {
@@ -345,6 +348,82 @@ public static class WeaponSetupTool
         }
 
         return true;
+    }
+
+    // Guns must hold a fixed, predictable orientation in the hand instead of
+    // dangling at whatever angle they happened to be grabbed - VRCPickup's
+    // "Gun" orientation mode does exactly this by aligning a dedicated
+    // ExactGun child transform to the hand, and "AutoHold: Yes" keeps the
+    // weapon equipped after a single grab (no need to hold the grab button),
+    // so the player is free to left-click to fire and press the interact
+    // key (Desktop: E) to drop it.
+    // VRChat's Gun-orientation hand alignment does not use the standard
+    // Unity "Z-forward, Y-up" convention - this exact offset (X=270/-90,
+    // Y=90, Z=180) was found and confirmed correct via real VRChat client
+    // testing (Build & Test), not derived analytically. Don't "simplify"
+    // this without retesting in a real client - ClientSim does not
+    // reproduce Gun/Grip hand alignment at all (it shows a static pose), so
+    // it cannot be used to validate changes here.
+    private static readonly Quaternion ExactGunRotationFix = Quaternion.Euler(270f, 90f, 180f);
+
+    private static void ConfigurePickupOrientation(GameObject go, VRCPickup pickup)
+    {
+        pickup.orientation = VRC_Pickup.PickupOrientation.Gun;
+        pickup.AutoHold = VRC_Pickup.AutoHoldMode.Yes;
+
+        Transform exactGun = pickup.ExactGun;
+        if (exactGun == null)
+        {
+            Transform existing = go.transform.Find("ExactGun");
+            exactGun = existing != null ? existing : new GameObject("ExactGun").transform;
+            exactGun.SetParent(go.transform, false);
+            exactGun.localPosition = Vector3.zero;
+            pickup.ExactGun = exactGun;
+        }
+        exactGun.localRotation = ExactGunRotationFix;
+    }
+
+    // Re-applies the Gun orientation / AutoHold fix to every already-wired
+    // weapon prefab (WireSelectedAsGun / AutoWireAllWeaponPrefabs skip these
+    // since they already have a Gun component). Run this once to fix
+    // existing weapons after this behavior was added.
+    [MenuItem("Zombie Game/Weapons/4. Fix Pickup Orientation On All Wired Weapons")]
+    private static void FixPickupOrientationOnAllWiredWeapons()
+    {
+        string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { ThirdPartyFolder });
+        int fixedCount = 0;
+
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (!path.Contains("/Prefabs/Weapons/")) continue;
+            if (path.Contains("/Attachments/") || path.Contains("/Bullets/")) continue;
+
+            GameObject contentsRoot = null;
+            try
+            {
+                contentsRoot = PrefabUtility.LoadPrefabContents(path);
+                VRCPickup pickup = contentsRoot.GetComponent<VRCPickup>();
+                if (pickup == null || contentsRoot.GetComponent<Gun>() == null) continue;
+
+                ConfigurePickupOrientation(contentsRoot, pickup);
+                PrefabUtility.SaveAsPrefabAsset(contentsRoot, path);
+                fixedCount++;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[WeaponSetupTool] Skipped " + path + " - failed to load/fix (likely a corrupt/broken source prefab, unrelated to this tool): " + e.Message);
+            }
+            finally
+            {
+                if (contentsRoot != null) PrefabUtility.UnloadPrefabContents(contentsRoot);
+            }
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log("[WeaponSetupTool] Fixed pickup orientation/AutoHold on " + fixedCount + " weapon prefab(s). " +
+            "Each ExactGun child was placed at the weapon's local origin with no rotation - open the prefab and reposition/rotate it so the weapon's forward axis matches the hand's forward and the grip sits naturally in the hand.");
     }
 
     private static void EnsureFolder(string path)
