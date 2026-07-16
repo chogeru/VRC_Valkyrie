@@ -25,11 +25,13 @@ public class Gun : UdonSharpBehaviour
     public Transform muzzle;
     public ParticleSystem muzzleFlash;
     public ParticleSystem impactEffect;
-    public AudioSource fireSound;
-    public AudioSource reloadSound;
-    public AudioSource emptySound;
-    public AudioSource tierUpSound;
+    [Tooltip("Per-weapon audio config - assign a WeaponAudioConfig here for fire/reload/dryfire/tierup sounds.")]
+    public WeaponAudioConfig audioConfig;
     public LayerMask hitMask = ~0;
+
+    [Header("Bullet Pool (visual mecha-style projectiles)")]
+    [Tooltip("Pre-placed inactive BulletProjectile child objects for object pooling. 8-12 slots recommended for full-auto weapons.")]
+    public BulletProjectile[] bulletPool;
 
     [Header("Ammo Display (world-space text next to the weapon, works in Desktop and VR)")]
     [Tooltip("Optional 3D TextMeshPro (not a Canvas UI) parented near the weapon body - shows 'current / reserve' ammo.")]
@@ -64,6 +66,7 @@ public class Gun : UdonSharpBehaviour
     private float nextFireTime;
     private int lastAppliedTier = -1;
     private bool ammoInitialized;
+    private int bulletPoolIndex;
 
     private Vector3 slideRestLocalPos;
     private bool slideAnimating;
@@ -135,7 +138,7 @@ public class Gun : UdonSharpBehaviour
         {
             lastAppliedTier = tier;
             if (hud != null) hud.OnWeaponTierChanged(config.weaponName, tier);
-            if (tierUpSound != null) tierUpSound.Play();
+            if (audioConfig != null) audioConfig.PlayTierUp();
         }
     }
 
@@ -146,7 +149,7 @@ public class Gun : UdonSharpBehaviour
 
         if (currentAmmo <= 0)
         {
-            if (emptySound != null) emptySound.Play();
+            if (audioConfig != null) audioConfig.PlayDryFire();
             StartReload();
             return;
         }
@@ -173,7 +176,7 @@ public class Gun : UdonSharpBehaviour
     private void FireShot()
     {
         if (muzzleFlash != null) muzzleFlash.Play();
-        if (fireSound != null) fireSound.Play();
+        if (audioConfig != null) audioConfig.PlayFire();
         TriggerSlideCycle();
 
         Vector3 origin = muzzle != null ? muzzle.position : transform.position;
@@ -184,9 +187,15 @@ public class Gun : UdonSharpBehaviour
             Random.Range(-config.spreadDegrees, config.spreadDegrees),
             0f) * dir;
 
+        // Default travel distance is full range (shot missed everything).
+        // Overridden below to the exact hit distance so the visual bullet
+        // stops precisely where the raycast landed.
+        float bulletTravelDist = config.range;
+
         RaycastHit hit;
         if (Physics.Raycast(origin, dir, out hit, config.range, hitMask))
         {
+            bulletTravelDist = hit.distance;
             PlayImpactEffect(hit.point, hit.normal);
 
             ZombieAI zombie = hit.collider.GetComponentInParent<ZombieAI>();
@@ -202,15 +211,38 @@ public class Gun : UdonSharpBehaviour
                     int reward = zombie.config != null ? zombie.config.scoreValue : 0;
                     AwardScoreToLocalPlayer(reward);
                 }
-                return;
             }
-
-            if (settings != null && settings.friendlyFireEnabled)
+            else if (settings != null && settings.friendlyFireEnabled)
             {
                 PlayerHealthManager targetHealth = hit.collider.GetComponentInParent<PlayerHealthManager>();
                 if (targetHealth != null) targetHealth.ApplyDamage(EffectiveDamage());
             }
         }
+
+        SpawnBullet(origin, dir, bulletTravelDist);
+    }
+
+    // Activates the next available BulletProjectile from the pool (round-robin).
+    // If all bullets are currently active the shot is skipped visually - the
+    // raycast damage already applied, so gameplay is unaffected.
+    private void SpawnBullet(Vector3 origin, Vector3 dir, float travelDist)
+    {
+        if (bulletPool == null || bulletPool.Length == 0) return;
+
+        int startIdx = bulletPoolIndex;
+        do
+        {
+            BulletProjectile bullet = bulletPool[bulletPoolIndex];
+            bulletPoolIndex = (bulletPoolIndex + 1) % bulletPool.Length;
+
+            if (bullet != null && !bullet.gameObject.activeSelf)
+            {
+                bullet.Fire(origin, dir, travelDist);
+                return;
+            }
+        }
+        while (bulletPoolIndex != startIdx);
+        // All pool slots active - pool exhausted, skip this visual bullet.
     }
 
     // Reuses a single pre-placed ParticleSystem (repositioned per shot)
@@ -268,7 +300,7 @@ public class Gun : UdonSharpBehaviour
         lastAppliedTier = tier;
         RequestSerialization();
         if (hud != null) hud.OnWeaponTierChanged(config.weaponName, tier);
-        if (tierUpSound != null) tierUpSound.Play();
+        if (audioConfig != null) audioConfig.PlayTierUp();
     }
 
     public int GetUpgradeCost(int targetTier)
@@ -296,7 +328,7 @@ public class Gun : UdonSharpBehaviour
         if (isReloading) return;
         if (reserveAmmo <= 0) return;
         isReloading = true;
-        if (reloadSound != null) reloadSound.Play();
+        if (audioConfig != null) audioConfig.PlayReload();
         SendCustomEventDelayedSeconds(nameof(FinishReload), EffectiveReloadTime());
     }
 
