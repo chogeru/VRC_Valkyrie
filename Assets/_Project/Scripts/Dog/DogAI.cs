@@ -1,0 +1,702 @@
+using UdonSharp;
+using UnityEngine;
+using UnityEngine.AI;
+using VRC.SDKBase;
+using VRC.Udon.Common.Interfaces;
+
+// Owner-authoritative pet dog brain. Only the current owner runs RunAi() -
+// every other client just watches the transform (via VRC Object Sync on
+// this GameObject) and the synced ActionState animator param arrive
+// through OnDeserialization, same shape as ZombieAI/GameManager elsewhere
+// in this project. The per-client "Speed" animator param is NOT synced -
+// every client (owner included) derives it locally from how far the
+// transform actually moved last frame, which tracks the interpolated
+// Object Sync position on remote clients for free.
+[UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
+public class DogAI : UdonSharpBehaviour
+{
+    // Mirrors ShibaInu_Gameplay.controller's int "ActionState" parameter.
+    public const int ACTION_NONE = 0;
+    public const int ACTION_SIT = 1;
+    public const int ACTION_LIE = 2;
+    public const int ACTION_EAT = 3;
+    public const int ACTION_DRINK = 4;
+    public const int ACTION_DIG = 5;
+    public const int ACTION_CARRY_BALL = 6;
+    public const int ACTION_SLEEP = 7;
+
+    // Local-only high level task the owner is currently running.
+    private const int TASK_IDLE = 0;
+    private const int TASK_WANDER = 1;
+    private const int TASK_GO_TO_BALL = 2;
+    private const int TASK_RETURN_BALL = 3;
+    private const int TASK_GO_EAT = 4;
+    private const int TASK_EATING = 5;
+    private const int TASK_GO_DRINK = 6;
+    private const int TASK_DRINKING = 7;
+    private const int TASK_GO_SLEEP = 8;
+    private const int TASK_SLEEPING = 9;
+    private const int TASK_GO_TO_BONE = 10;
+    private const int TASK_CHEWING = 11;
+    private const int TASK_AGILITY = 12;
+    private const int TASK_SIT_AMBIENT = 13;
+    private const int TASK_LIE_AMBIENT = 14;
+    private const int TASK_PET_REACTION = 15;
+
+    [Header("Debug")]
+    [Tooltip("Logs task/state transitions and a periodic status line to the console. Turn off before publishing.")]
+    public bool debugLogging = true;
+    private float nextDebugLogTime;
+
+    [Header("Config")]
+    public DogConfig config;
+
+    [Header("References")]
+    public NavMeshAgent agent;
+    public Animator animator;
+    public Transform mouthSocket;
+    public AudioSource voiceAudioSource;
+
+    [Header("Home / Rest")]
+    public Transform homeCenter;
+    public Transform sleepPoint;
+
+    [Header("Feeding")]
+    public FoodBowl foodBowl;
+    public WaterBowl waterBowl;
+
+    [Header("Agility Course (visiting order)")]
+    public Transform[] agilityWaypoints;
+    [Tooltip("Parallel to agilityWaypoints - true fires the Jump animation trigger shortly before reaching that waypoint. Set directly rather than read via GetComponent<AgilityWaypoint>() at runtime, since cross-UdonSharpBehaviour GetComponent<T>() calls during Start() are unreliable due to Udon init ordering.")]
+    public bool[] agilityIsJumpPoints;
+
+    [UdonSynced] private int syncedActionState;
+    [UdonSynced] private float syncedHunger = 1f;
+    [UdonSynced] private float syncedThirst = 1f;
+    [UdonSynced] private float syncedEnergy = 1f;
+    [UdonSynced] private float syncedAffection = 0.2f;
+
+    private int lastAppliedActionState = -1;
+    private int task = TASK_IDLE;
+
+    private Vector3 lastPos;
+    private float currentAnimSpeed;
+    private float nextNeedsSyncTime;
+
+    private float nextWanderTime;
+    private float nextAgilityTime;
+    private float taskEndTime;
+
+    private DogBall targetBall;
+    private DogBall carriedBall;
+
+    private Transform toyTarget;
+
+    private int agilityIndex;
+    private bool agilityJumpFiredForCurrentLeg;
+
+    void Start()
+    {
+        if (agent == null) agent = GetComponent<NavMeshAgent>();
+        if (animator == null) animator = GetComponent<Animator>();
+        lastPos = transform.position;
+
+        if (agent != null && config != null)
+        {
+            agent.angularSpeed = config.angularSpeed;
+            agent.acceleration = config.acceleration;
+        }
+
+        ScheduleNextWander();
+        ScheduleNextAgility();
+        ApplyActionStateLocal();
+
+        if (debugLogging)
+        {
+            Debug.Log("[DogAI] Start: config=" + (config != null) + " agent=" + (agent != null) +
+                " agent.isOnNavMesh=" + (agent != null && agent.isOnNavMesh) +
+                " animator=" + (animator != null) + " mouthSocket=" + (mouthSocket != null) +
+                " foodBowl=" + (foodBowl != null) + " waterBowl=" + (waterBowl != null) +
+                " agilityWaypoints=" + (agilityWaypoints != null ? agilityWaypoints.Length : -1) +
+                " isOwner=" + Networking.IsOwner(gameObject));
+        }
+    }
+
+    void Update()
+    {
+        DebugTick();
+    }
+
+    public void DebugTick()
+    {
+        UpdateAnimSpeedFromMovement();
+
+        if (debugLogging && Time.time >= nextDebugLogTime)
+        {
+            nextDebugLogTime = Time.time + 2f;
+            Debug.Log("[DogAI] status task=" + TaskName(task) + " pos=" + transform.position +
+                " Speed=" + currentAnimSpeed + " ActionState=" + syncedActionState +
+                " isOwner=" + Networking.IsOwner(gameObject) +
+                " onNavMesh=" + (agent != null && agent.isOnNavMesh) +
+                " agentEnabled=" + (agent != null && agent.enabled) +
+                " hunger=" + syncedHunger + " thirst=" + syncedThirst + " energy=" + syncedEnergy);
+        }
+
+        if (!Networking.IsOwner(gameObject)) return;
+
+        DecayNeeds();
+        RunAi();
+
+        if (Time.time >= nextNeedsSyncTime)
+        {
+            nextNeedsSyncTime = Time.time + 1.5f;
+            RequestSerialization();
+        }
+    }
+
+    private string TaskName(int t)
+    {
+        if (t == TASK_IDLE) return "IDLE";
+        if (t == TASK_WANDER) return "WANDER";
+        if (t == TASK_GO_TO_BALL) return "GO_TO_BALL";
+        if (t == TASK_RETURN_BALL) return "RETURN_BALL";
+        if (t == TASK_GO_EAT) return "GO_EAT";
+        if (t == TASK_EATING) return "EATING";
+        if (t == TASK_GO_DRINK) return "GO_DRINK";
+        if (t == TASK_DRINKING) return "DRINKING";
+        if (t == TASK_GO_SLEEP) return "GO_SLEEP";
+        if (t == TASK_SLEEPING) return "SLEEPING";
+        if (t == TASK_GO_TO_BONE) return "GO_TO_BONE";
+        if (t == TASK_CHEWING) return "CHEWING";
+        if (t == TASK_AGILITY) return "AGILITY";
+        if (t == TASK_SIT_AMBIENT) return "SIT_AMBIENT";
+        if (t == TASK_LIE_AMBIENT) return "LIE_AMBIENT";
+        if (t == TASK_PET_REACTION) return "PET_REACTION";
+        return "UNKNOWN(" + t + ")";
+    }
+
+    private void UpdateAnimSpeedFromMovement()
+    {
+        float dt = Time.deltaTime;
+        float instSpeed;
+
+        // Prefer the NavMeshAgent's own engine-tracked velocity - it's smooth
+        // and correct every frame regardless of this script's own tick timing.
+        // The previous approach (diffing transform.position against a
+        // remembered lastPos) produced spurious huge spikes whenever this
+        // script's Update() was skipped/delayed for a frame (small dt divided
+        // into a position delta that had actually accumulated over several
+        // real frames), which threw off the locomotion blend tree's timing.
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
+        {
+            instSpeed = agent.velocity.magnitude;
+        }
+        else
+        {
+            float maxPlausibleSpeed = config != null ? config.fastRunSpeed * 1.5f : 10f;
+            instSpeed = dt > 0f ? Mathf.Min((transform.position - lastPos).magnitude / dt, maxPlausibleSpeed) : 0f;
+        }
+        lastPos = transform.position;
+
+        currentAnimSpeed = Mathf.Lerp(currentAnimSpeed, instSpeed, 1f - Mathf.Exp(-10f * dt));
+        if (animator != null) animator.SetFloat("Speed", currentAnimSpeed);
+    }
+
+    private void DecayNeeds()
+    {
+        if (config == null) return;
+        float dt = Time.deltaTime;
+
+        if (task == TASK_SLEEPING) syncedEnergy = Mathf.Clamp01(syncedEnergy + config.energyRegenPerSecond * dt);
+        else syncedEnergy = Mathf.Clamp01(syncedEnergy - config.energyDecayPerSecond * dt);
+
+        if (task != TASK_EATING) syncedHunger = Mathf.Clamp01(syncedHunger - config.hungerDecayPerSecond * dt);
+        if (task != TASK_DRINKING) syncedThirst = Mathf.Clamp01(syncedThirst - config.thirstDecayPerSecond * dt);
+
+        syncedAffection = Mathf.Clamp01(syncedAffection - config.affectionDecayPerSecond * dt);
+    }
+
+    private void RunAi()
+    {
+        if (carriedBall != null && mouthSocket != null)
+        {
+            carriedBall.transform.SetPositionAndRotation(mouthSocket.position, mouthSocket.rotation);
+        }
+
+        // An uncaught exception anywhere in this Udon program permanently
+        // halts the whole behaviour with no visible error, so guard the one
+        // condition that would make every SetDestination call below misbehave:
+        // the agent having been knocked off (or never placed on) the NavMesh.
+        if (agent == null || !agent.isOnNavMesh)
+        {
+            if (task != TASK_SIT_AMBIENT && task != TASK_LIE_AMBIENT && task != TASK_PET_REACTION)
+            {
+                if (debugLogging && Time.time >= nextDebugLogTime - 1.9f) Debug.LogWarning("[DogAI] RunAi blocked: agent=" + (agent != null) + " isOnNavMesh=" + (agent != null && agent.isOnNavMesh) + " pos=" + transform.position);
+                return;
+            }
+        }
+
+        if (task == TASK_GO_TO_BALL) { TickGoToBall(); return; }
+        if (task == TASK_RETURN_BALL) { TickReturnBall(); return; }
+        if (task == TASK_GO_EAT) { TickGoEat(); return; }
+        if (task == TASK_EATING) { TickEating(); return; }
+        if (task == TASK_GO_DRINK) { TickGoDrink(); return; }
+        if (task == TASK_DRINKING) { TickDrinking(); return; }
+        if (task == TASK_GO_SLEEP) { TickGoSleep(); return; }
+        if (task == TASK_SLEEPING) { TickSleeping(); return; }
+        if (task == TASK_GO_TO_BONE) { TickGoToBone(); return; }
+        if (task == TASK_CHEWING) { TickChewing(); return; }
+        if (task == TASK_AGILITY) { TickAgility(); return; }
+        if (task == TASK_SIT_AMBIENT || task == TASK_LIE_AMBIENT || task == TASK_PET_REACTION) { TickTimedIdleReturn(); return; }
+
+        // Free to pick a new priority task, highest first.
+        if (targetBall != null) { BeginGoToBall(); return; }
+        if (config != null && syncedHunger < config.needThreshold && foodBowl != null && foodBowl.HasFood()) { BeginGoEat(); return; }
+        if (config != null && syncedThirst < config.needThreshold && waterBowl != null && waterBowl.HasWater()) { BeginGoDrink(); return; }
+        if (config != null && syncedEnergy < config.needThreshold) { BeginGoSleep(); return; }
+        if (toyTarget != null) { BeginGoToBone(); return; }
+        if (Time.time >= nextAgilityTime && agilityWaypoints != null && agilityWaypoints.Length > 0) { BeginAgility(); return; }
+
+        TickIdleWander();
+    }
+
+    // --- Fetch ------------------------------------------------------------
+
+    // Called locally by DogBall when a player throws it (OnDrop).
+    public void RequestFetch(DogBall ball)
+    {
+        if (ball == null) return;
+        targetBall = ball;
+        if (debugLogging) Debug.Log("[DogAI] RequestFetch received, ball at " + ball.transform.position);
+    }
+
+    // Called locally by DogBall when a player grabs it out of the dog's task.
+    public void CancelFetch()
+    {
+        if (task == TASK_GO_TO_BALL || task == TASK_RETURN_BALL)
+        {
+            task = TASK_IDLE;
+            SetActionState(ACTION_NONE);
+            ScheduleNextWander();
+        }
+        targetBall = null;
+        carriedBall = null;
+    }
+
+    private void BeginGoToBall()
+    {
+        task = TASK_GO_TO_BALL;
+        if (agent != null && config != null)
+        {
+            agent.speed = config.fetchMoveSpeed;
+            agent.SetDestination(targetBall.transform.position);
+        }
+        if (debugLogging) Debug.Log("[DogAI] BeginGoToBall dest=" + (targetBall != null ? targetBall.transform.position.ToString() : "null") + " agentOnMesh=" + (agent != null && agent.isOnNavMesh));
+    }
+
+    private void TickGoToBall()
+    {
+        if (targetBall == null) { task = TASK_IDLE; ScheduleNextWander(); return; }
+        if (agent == null) return;
+
+        agent.SetDestination(targetBall.transform.position);
+        if (!agent.pathPending && agent.remainingDistance <= config.ballPickupDistance)
+        {
+            if (!Networking.IsOwner(targetBall.gameObject)) Networking.SetOwner(Networking.LocalPlayer, targetBall.gameObject);
+            targetBall.SetCarried(true);
+            carriedBall = targetBall;
+            targetBall = null;
+            SetActionState(ACTION_CARRY_BALL);
+            task = TASK_RETURN_BALL;
+            Bark();
+            if (debugLogging) Debug.Log("[DogAI] Picked up ball, now returning.");
+        }
+    }
+
+    private void TickReturnBall()
+    {
+        if (agent == null) return;
+        VRCPlayerApi target = FindNearestPlayer();
+        Vector3 destPos = homeCenter != null ? homeCenter.position : transform.position;
+        if (target != null) destPos = target.GetPosition();
+        agent.SetDestination(destPos);
+
+        if (!agent.pathPending && agent.remainingDistance <= config.ballReturnDistance)
+        {
+            DropCarriedBall();
+        }
+    }
+
+    private void DropCarriedBall()
+    {
+        if (carriedBall != null)
+        {
+            carriedBall.SetCarried(false);
+            carriedBall = null;
+        }
+        SetActionState(ACTION_SIT);
+        task = TASK_SIT_AMBIENT;
+        taskEndTime = Time.time + 2f;
+        Bark();
+        if (debugLogging) Debug.Log("[DogAI] Dropped ball at " + transform.position);
+    }
+
+    // --- Feeding ------------------------------------------------------------
+
+    // Called locally by FoodBowl/WaterBowl once refilled, purely to nudge the
+    // AI to reconsider immediately instead of waiting for its next idle tick.
+    public void NotifyBowlFilled(UdonSharpBehaviour bowl) { }
+
+    private void BeginGoEat()
+    {
+        task = TASK_GO_EAT;
+        if (agent != null && config != null)
+        {
+            agent.speed = config.wanderMoveSpeed;
+            agent.SetDestination(foodBowl.transform.position);
+        }
+    }
+
+    private void TickGoEat()
+    {
+        if (foodBowl == null || agent == null) { task = TASK_IDLE; return; }
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
+        {
+            task = TASK_EATING;
+            SetActionState(ACTION_EAT);
+            taskEndTime = Time.time + config.eatDuration;
+        }
+    }
+
+    private void TickEating()
+    {
+        if (Time.time >= taskEndTime)
+        {
+            syncedHunger = 1f;
+            if (foodBowl != null) foodBowl.Consume();
+            SetActionState(ACTION_NONE);
+            task = TASK_IDLE;
+            ScheduleNextWander();
+        }
+    }
+
+    private void BeginGoDrink()
+    {
+        task = TASK_GO_DRINK;
+        if (agent != null && config != null)
+        {
+            agent.speed = config.wanderMoveSpeed;
+            agent.SetDestination(waterBowl.transform.position);
+        }
+    }
+
+    private void TickGoDrink()
+    {
+        if (waterBowl == null || agent == null) { task = TASK_IDLE; return; }
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
+        {
+            task = TASK_DRINKING;
+            SetActionState(ACTION_DRINK);
+            taskEndTime = Time.time + config.drinkDuration;
+        }
+    }
+
+    private void TickDrinking()
+    {
+        if (Time.time >= taskEndTime)
+        {
+            syncedThirst = 1f;
+            if (waterBowl != null) waterBowl.Consume();
+            SetActionState(ACTION_NONE);
+            task = TASK_IDLE;
+            ScheduleNextWander();
+        }
+    }
+
+    // --- Sleep ------------------------------------------------------------
+
+    private void BeginGoSleep()
+    {
+        task = TASK_GO_SLEEP;
+        if (agent == null || config == null) return;
+        agent.speed = config.wanderMoveSpeed;
+        Vector3 dest = sleepPoint != null ? sleepPoint.position : (homeCenter != null ? homeCenter.position : transform.position);
+        agent.SetDestination(dest);
+    }
+
+    private void TickGoSleep()
+    {
+        if (agent == null) return;
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
+        {
+            task = TASK_SLEEPING;
+            SetActionState(ACTION_SLEEP);
+            taskEndTime = Time.time + config.sleepMinDuration;
+        }
+    }
+
+    private void TickSleeping()
+    {
+        if (Time.time >= taskEndTime && syncedEnergy >= 0.9f)
+        {
+            SetActionState(ACTION_NONE);
+            task = TASK_IDLE;
+            ScheduleNextWander();
+        }
+    }
+
+    // --- Toy / chew ---------------------------------------------------------
+
+    // Called locally by DogToy.Interact().
+    public void NotifyToyGiven(Transform toy)
+    {
+        toyTarget = toy;
+    }
+
+    private void BeginGoToBone()
+    {
+        task = TASK_GO_TO_BONE;
+        if (agent != null && config != null)
+        {
+            agent.speed = config.wanderMoveSpeed;
+            agent.SetDestination(toyTarget.position);
+        }
+    }
+
+    private void TickGoToBone()
+    {
+        if (toyTarget == null || agent == null) { task = TASK_IDLE; return; }
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
+        {
+            task = TASK_CHEWING;
+            SetActionState(ACTION_DIG);
+            taskEndTime = Time.time + config.chewDuration;
+        }
+    }
+
+    private void TickChewing()
+    {
+        if (Time.time >= taskEndTime)
+        {
+            toyTarget = null;
+            SetActionState(ACTION_NONE);
+            task = TASK_IDLE;
+            ScheduleNextWander();
+        }
+    }
+
+    // --- Agility course -----------------------------------------------------
+
+    private void BeginAgility()
+    {
+        if (agent == null || config == null || agilityWaypoints.Length == 0) { ScheduleNextAgility(); return; }
+        task = TASK_AGILITY;
+        agilityIndex = 0;
+        agilityJumpFiredForCurrentLeg = false;
+        agent.speed = config.agilityMoveSpeed;
+        if (agilityWaypoints[0] != null) agent.SetDestination(agilityWaypoints[0].position);
+    }
+
+    private void TickAgility()
+    {
+        if (agent == null) return;
+        Transform wp = agilityWaypoints[agilityIndex];
+        if (wp == null) { AdvanceAgility(); return; }
+
+        if (agilityIsJumpPoints != null && agilityIndex < agilityIsJumpPoints.Length && agilityIsJumpPoints[agilityIndex] && !agilityJumpFiredForCurrentLeg &&
+            !agent.pathPending && agent.remainingDistance <= config.agilityJumpLeadDistance)
+        {
+            if (animator != null) animator.SetTrigger("JumpTrigger");
+            agilityJumpFiredForCurrentLeg = true;
+        }
+
+        if (!agent.pathPending && agent.remainingDistance <= config.agilityWaypointArriveDistance)
+        {
+            AdvanceAgility();
+        }
+    }
+
+    private void AdvanceAgility()
+    {
+        agilityIndex++;
+        agilityJumpFiredForCurrentLeg = false;
+        if (agilityIndex >= agilityWaypoints.Length)
+        {
+            task = TASK_IDLE;
+            ScheduleNextAgility();
+            ScheduleNextWander();
+            return;
+        }
+        Transform next = agilityWaypoints[agilityIndex];
+        if (next != null && agent != null) agent.SetDestination(next.position);
+    }
+
+    private void ScheduleNextAgility()
+    {
+        float baseInterval = config != null ? config.agilityIntervalSeconds : 45f;
+        nextAgilityTime = Time.time + baseInterval * Random.Range(0.7f, 1.3f);
+    }
+
+    // --- Idle / wander / ambient ---------------------------------------------
+
+    private void TickIdleWander()
+    {
+        if (task == TASK_WANDER)
+        {
+            if (agent != null && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.2f)
+            {
+                task = TASK_IDLE;
+                ScheduleNextWander();
+            }
+            return;
+        }
+
+        if (Time.time >= nextWanderTime)
+        {
+            float r = Random.value;
+            if (r < 0.12f) { BeginAmbientSit(); return; }
+            if (r < 0.22f) { BeginAmbientLie(); return; }
+            if (r < 0.30f) { Bark(); ScheduleNextWander(); return; }
+            BeginWander();
+        }
+    }
+
+    private void BeginWander()
+    {
+        if (agent == null || config == null) return;
+        Vector3 center = homeCenter != null ? homeCenter.position : transform.position;
+        Vector3 randomPoint = center + Random.insideUnitSphere * config.wanderRadius;
+
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(randomPoint, out hit, config.wanderRadius, NavMesh.AllAreas))
+        {
+            agent.speed = config.wanderMoveSpeed;
+            agent.SetDestination(hit.position);
+            task = TASK_WANDER;
+            if (debugLogging) Debug.Log("[DogAI] BeginWander -> " + hit.position + " (from " + transform.position + ")");
+        }
+        else
+        {
+            ScheduleNextWander();
+            if (debugLogging) Debug.Log("[DogAI] BeginWander: NavMesh.SamplePosition failed near " + randomPoint);
+        }
+    }
+
+    private void BeginAmbientSit()
+    {
+        task = TASK_SIT_AMBIENT;
+        SetActionState(ACTION_SIT);
+        taskEndTime = Time.time + Random.Range(2f, 5f);
+    }
+
+    private void BeginAmbientLie()
+    {
+        task = TASK_LIE_AMBIENT;
+        SetActionState(ACTION_LIE);
+        taskEndTime = Time.time + Random.Range(3f, 8f);
+    }
+
+    private void TickTimedIdleReturn()
+    {
+        if (Time.time >= taskEndTime)
+        {
+            SetActionState(ACTION_NONE);
+            task = TASK_IDLE;
+            ScheduleNextWander();
+        }
+    }
+
+    private void ScheduleNextWander()
+    {
+        float lo = config != null ? config.wanderIntervalMin : 3f;
+        float hi = config != null ? config.wanderIntervalMax : 8f;
+        nextWanderTime = Time.time + Random.Range(lo, hi);
+    }
+
+    // --- Petting ------------------------------------------------------------
+
+    // Place this on a Collider covering the dog's body (or the root itself).
+    public override void Interact()
+    {
+        SendCustomNetworkEvent(NetworkEventTarget.All, nameof(ReactToPet));
+    }
+
+    // Runs on every client so everyone sees the happy reaction, but only the
+    // owner actually advances affection/task state.
+    public void ReactToPet()
+    {
+        if (debugLogging) Debug.Log("[DogAI] ReactToPet (isOwner=" + Networking.IsOwner(gameObject) + ")");
+        if (animator != null) animator.SetTrigger("BarkTrigger");
+        PlayRandomClip(config != null ? config.happyClips : null);
+
+        if (!Networking.IsOwner(gameObject) || config == null) return;
+
+        syncedAffection = Mathf.Clamp01(syncedAffection + config.affectionPerPet);
+        RequestSerialization();
+
+        if (task == TASK_IDLE || task == TASK_WANDER || task == TASK_SIT_AMBIENT || task == TASK_LIE_AMBIENT)
+        {
+            task = TASK_PET_REACTION;
+            SetActionState(ACTION_SIT);
+            taskEndTime = Time.time + config.petReactionDuration;
+        }
+    }
+
+    // --- Shared helpers -------------------------------------------------------
+
+    private VRCPlayerApi FindNearestPlayer()
+    {
+        VRCPlayerApi[] players = new VRCPlayerApi[VRCPlayerApi.GetPlayerCount()];
+        VRCPlayerApi.GetPlayers(players);
+
+        VRCPlayerApi nearest = null;
+        float best = float.MaxValue;
+        foreach (VRCPlayerApi p in players)
+        {
+            if (p == null || !p.IsValid()) continue;
+            float d = Vector3.Distance(transform.position, p.GetPosition());
+            if (d < best) { best = d; nearest = p; }
+        }
+        return nearest;
+    }
+
+    // Local-only flavor bark (like ZombieAI's ambient sounds) - plays for
+    // whoever currently owns the dog, not broadcast to everyone. The
+    // network-broadcast happy bark on pet is handled separately via ReactToPet.
+    private void Bark()
+    {
+        if (animator != null) animator.SetTrigger("BarkTrigger");
+        PlayRandomClip(config != null ? config.barkClips : null);
+    }
+
+    private void PlayRandomClip(AudioClip[] clips)
+    {
+        if (voiceAudioSource == null || clips == null || clips.Length == 0) return;
+        AudioClip clip = clips[Random.Range(0, clips.Length)];
+        if (clip != null) voiceAudioSource.PlayOneShot(clip);
+    }
+
+    private void SetActionState(int newState)
+    {
+        if (syncedActionState == newState) return;
+        syncedActionState = newState;
+        RequestSerialization();
+        ApplyActionStateLocal();
+    }
+
+    public override void OnDeserialization()
+    {
+        if (syncedActionState != lastAppliedActionState) ApplyActionStateLocal();
+    }
+
+    private void ApplyActionStateLocal()
+    {
+        lastAppliedActionState = syncedActionState;
+        if (animator != null) animator.SetInteger("ActionState", syncedActionState);
+    }
+
+    public float GetHunger() { return syncedHunger; }
+    public float GetThirst() { return syncedThirst; }
+    public float GetEnergy() { return syncedEnergy; }
+    public float GetAffection() { return syncedAffection; }
+}
