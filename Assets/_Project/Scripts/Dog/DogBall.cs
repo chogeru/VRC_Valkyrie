@@ -7,14 +7,25 @@ using VRC.SDKBase;
 // reference needed here - Object Sync automatically broadcasts whatever
 // the current network owner does to this transform, whether that's a
 // player throwing it or DogAI carrying it in its mouth).
+//
+// `wasThrown`/`heldByPlayer` are public fields DogAI polls directly each
+// tick (ball.wasThrown, ball.heldByPlayer) rather than this script pushing
+// a fetch request via a method call on DogAI - see FoodBowl.cs for why
+// cross-behaviour method invocation isn't used for this kind of signal in
+// this project.
 public class DogBall : UdonSharpBehaviour
 {
     [Header("References")]
-    public DogAI dogAI;
     public Rigidbody rb;
+
+    public bool wasThrown;
+    public bool heldByPlayer;
 
     private VRC_Pickup pickup;
     private bool carried;
+
+    public bool debugLogging = true;
+    private float nextDebugLogTime;
 
     void Start()
     {
@@ -22,20 +33,30 @@ public class DogBall : UdonSharpBehaviour
         pickup = GetComponent<VRC_Pickup>();
     }
 
+    void Update()
+    {
+        if (debugLogging && Time.time >= nextDebugLogTime)
+        {
+            nextDebugLogTime = Time.time + 2f;
+            Debug.Log("[DogBall] status wasThrown=" + wasThrown + " heldByPlayer=" + heldByPlayer + " carried=" + carried + " pos=" + transform.position);
+        }
+    }
+
     public override void OnPickup()
     {
-        Debug.Log("[DogBall] OnPickup by " + Networking.LocalPlayer.displayName);
-        // A player grabbed it out of the air/ground - abandon any in-progress fetch.
-        if (dogAI != null) dogAI.CancelFetch();
+        heldByPlayer = true;
+        wasThrown = false;
+        if (debugLogging) Debug.Log("[DogBall] OnPickup fired");
     }
 
     public override void OnDrop()
     {
-        Debug.Log("[DogBall] OnDrop at " + transform.position + " carried(by dog)=" + carried);
-        // Only a player release should start a fetch; DogAI's own carry/drop
-        // cycle (SetCarried) never goes through VRC_Pickup, so this only
-        // fires for genuine throws.
-        if (dogAI != null) dogAI.RequestFetch(this);
+        heldByPlayer = false;
+        // Only a genuine player release should start a fetch; DogAI's own
+        // carry/drop cycle (SetCarried) never goes through VRC_Pickup, so
+        // `carried` distinguishes "the dog is holding it" from a real throw.
+        if (!carried) wasThrown = true;
+        if (debugLogging) Debug.Log("[DogBall] OnDrop fired, carried=" + carried + " wasThrown now=" + wasThrown);
     }
 
     // Called by DogAI when it picks the ball up in its mouth / sets it back down.

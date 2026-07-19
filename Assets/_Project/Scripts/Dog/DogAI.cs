@@ -57,6 +57,12 @@ public class DogAI : UdonSharpBehaviour
     public Transform mouthSocket;
     public AudioSource voiceAudioSource;
 
+    [Header("Toys")]
+    [Tooltip("The fetch ball - DogAI polls ball.wasThrown/heldByPlayer directly each tick.")]
+    public DogBall ball;
+    [Tooltip("The chew bone - DogAI polls toy.wasGiven directly each tick.")]
+    public DogToy toy;
+
     [Header("Home / Rest")]
     public Transform homeCenter;
     public Transform sleepPoint;
@@ -250,38 +256,39 @@ public class DogAI : UdonSharpBehaviour
         if (task == TASK_SIT_AMBIENT || task == TASK_LIE_AMBIENT || task == TASK_PET_REACTION) { TickTimedIdleReturn(); return; }
 
         // Free to pick a new priority task, highest first.
-        if (targetBall != null) { BeginGoToBall(); return; }
-        if (config != null && syncedHunger < config.needThreshold && foodBowl != null && foodBowl.HasFood()) { BeginGoEat(); return; }
-        if (config != null && syncedThirst < config.needThreshold && waterBowl != null && waterBowl.HasWater()) { BeginGoDrink(); return; }
+        bool foodReady = foodBowl != null && foodBowl.filled;
+        bool waterReady = waterBowl != null && waterBowl.filled;
+        if (debugLogging && (syncedHunger < 0.4f || syncedThirst < 0.4f || syncedEnergy < 0.4f) && Time.time >= nextDebugLogTime - 1.9f)
+        {
+            Debug.Log("[DogAI] priority-check hunger=" + syncedHunger + " thirst=" + syncedThirst + " energy=" + syncedEnergy +
+                " foodReady=" + foodReady + " waterReady=" + waterReady);
+        }
+
+        if (ball != null && ball.wasThrown && !ball.heldByPlayer)
+        {
+            targetBall = ball;
+            ball.wasThrown = false;
+            if (debugLogging) Debug.Log("[DogAI] Ball throw detected at " + ball.transform.position);
+            BeginGoToBall();
+            return;
+        }
+        if (config != null && syncedHunger < config.needThreshold && foodReady) { BeginGoEat(); return; }
+        if (config != null && syncedThirst < config.needThreshold && waterReady) { BeginGoDrink(); return; }
         if (config != null && syncedEnergy < config.needThreshold) { BeginGoSleep(); return; }
-        if (toyTarget != null) { BeginGoToBone(); return; }
+        if (toy != null && toy.wasGiven)
+        {
+            toyTarget = toy.transform;
+            toy.wasGiven = false;
+            if (debugLogging) Debug.Log("[DogAI] Toy given at " + toy.transform.position);
+            BeginGoToBone();
+            return;
+        }
         if (Time.time >= nextAgilityTime && agilityWaypoints != null && agilityWaypoints.Length > 0) { BeginAgility(); return; }
 
         TickIdleWander();
     }
 
     // --- Fetch ------------------------------------------------------------
-
-    // Called locally by DogBall when a player throws it (OnDrop).
-    public void RequestFetch(DogBall ball)
-    {
-        if (ball == null) return;
-        targetBall = ball;
-        if (debugLogging) Debug.Log("[DogAI] RequestFetch received, ball at " + ball.transform.position);
-    }
-
-    // Called locally by DogBall when a player grabs it out of the dog's task.
-    public void CancelFetch()
-    {
-        if (task == TASK_GO_TO_BALL || task == TASK_RETURN_BALL)
-        {
-            task = TASK_IDLE;
-            SetActionState(ACTION_NONE);
-            ScheduleNextWander();
-        }
-        targetBall = null;
-        carriedBall = null;
-    }
 
     private void BeginGoToBall()
     {
@@ -298,6 +305,16 @@ public class DogAI : UdonSharpBehaviour
     {
         if (targetBall == null) { task = TASK_IDLE; ScheduleNextWander(); return; }
         if (agent == null) return;
+
+        if (targetBall.heldByPlayer)
+        {
+            // A player grabbed it out of the air/off the ground - abandon the fetch.
+            targetBall = null;
+            SetActionState(ACTION_NONE);
+            task = TASK_IDLE;
+            ScheduleNextWander();
+            return;
+        }
 
         agent.SetDestination(targetBall.transform.position);
         if (!agent.pathPending && agent.remainingDistance <= config.ballPickupDistance)
@@ -343,10 +360,9 @@ public class DogAI : UdonSharpBehaviour
 
     // --- Feeding ------------------------------------------------------------
 
-    // Called locally by FoodBowl/WaterBowl once refilled, purely to nudge the
-    // AI to reconsider immediately instead of waiting for its next idle tick.
-    public void NotifyBowlFilled(UdonSharpBehaviour bowl) { }
-
+    // Called (void, no return value) by FoodBowl/WaterBowl whenever their
+    // filled state changes, so this AI never needs to call back into them
+    // for a bool return value.
     private void BeginGoEat()
     {
         task = TASK_GO_EAT;
@@ -360,11 +376,13 @@ public class DogAI : UdonSharpBehaviour
     private void TickGoEat()
     {
         if (foodBowl == null || agent == null) { task = TASK_IDLE; return; }
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.15f)
         {
+            FaceTarget(foodBowl.transform.position);
             task = TASK_EATING;
             SetActionState(ACTION_EAT);
             taskEndTime = Time.time + config.eatDuration;
+            if (debugLogging) Debug.Log("[DogAI] Arrived at food bowl, dist=" + Vector3.Distance(transform.position, foodBowl.transform.position));
         }
     }
 
@@ -373,7 +391,12 @@ public class DogAI : UdonSharpBehaviour
         if (Time.time >= taskEndTime)
         {
             syncedHunger = 1f;
-            if (foodBowl != null) foodBowl.Consume();
+            if (foodBowl != null)
+            {
+                if (!Networking.IsOwner(foodBowl.gameObject)) Networking.SetOwner(Networking.LocalPlayer, foodBowl.gameObject);
+                foodBowl.filled = false;
+                foodBowl.RequestSerialization();
+            }
             SetActionState(ACTION_NONE);
             task = TASK_IDLE;
             ScheduleNextWander();
@@ -393,11 +416,13 @@ public class DogAI : UdonSharpBehaviour
     private void TickGoDrink()
     {
         if (waterBowl == null || agent == null) { task = TASK_IDLE; return; }
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.15f)
         {
+            FaceTarget(waterBowl.transform.position);
             task = TASK_DRINKING;
             SetActionState(ACTION_DRINK);
             taskEndTime = Time.time + config.drinkDuration;
+            if (debugLogging) Debug.Log("[DogAI] Arrived at water bowl, dist=" + Vector3.Distance(transform.position, waterBowl.transform.position));
         }
     }
 
@@ -406,7 +431,12 @@ public class DogAI : UdonSharpBehaviour
         if (Time.time >= taskEndTime)
         {
             syncedThirst = 1f;
-            if (waterBowl != null) waterBowl.Consume();
+            if (waterBowl != null)
+            {
+                if (!Networking.IsOwner(waterBowl.gameObject)) Networking.SetOwner(Networking.LocalPlayer, waterBowl.gameObject);
+                waterBowl.filled = false;
+                waterBowl.RequestSerialization();
+            }
             SetActionState(ACTION_NONE);
             task = TASK_IDLE;
             ScheduleNextWander();
@@ -447,12 +477,6 @@ public class DogAI : UdonSharpBehaviour
 
     // --- Toy / chew ---------------------------------------------------------
 
-    // Called locally by DogToy.Interact().
-    public void NotifyToyGiven(Transform toy)
-    {
-        toyTarget = toy;
-    }
-
     private void BeginGoToBone()
     {
         task = TASK_GO_TO_BONE;
@@ -466,8 +490,9 @@ public class DogAI : UdonSharpBehaviour
     private void TickGoToBone()
     {
         if (toyTarget == null || agent == null) { task = TASK_IDLE; return; }
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.15f)
         {
+            FaceTarget(toyTarget.position);
             task = TASK_CHEWING;
             SetActionState(ACTION_DIG);
             taskEndTime = Time.time + config.chewDuration;
@@ -643,6 +668,18 @@ public class DogAI : UdonSharpBehaviour
     }
 
     // --- Shared helpers -------------------------------------------------------
+
+    // NavMeshAgent only turns to face its direction of travel, so it can arrive
+    // at a bowl/toy pointed slightly off to the side rather than square at it -
+    // snap to face the target directly so the head-down eat/drink/dig clip
+    // actually lines up with the prop instead of aiming past it.
+    private void FaceTarget(Vector3 worldPos)
+    {
+        Vector3 dir = worldPos - transform.position;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.0001f) return;
+        transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+    }
 
     private VRCPlayerApi FindNearestPlayer()
     {
