@@ -104,6 +104,24 @@ public class DogAI : UdonSharpBehaviour
     private int agilityIndex;
     private bool agilityJumpFiredForCurrentLeg;
 
+    // --- Animation self-diagnostics -----------------------------------------
+    // Every previous verification pass (parameter reads, SendCustomEvent
+    // triggers, edit-time-triggered Play Mode tests) has shown the state
+    // machine and Speed param advancing correctly, yet the user keeps
+    // reporting frozen legs while carrying. Since the failure hasn't been
+    // reproducible from this side, this block watches a real leg bone's
+    // local rotation every frame and SCREAMS in the console (LogWarning)
+    // the moment it detects Speed>0 without the bone actually moving, along
+    // with a full dump of every setting that could plausibly cause that -
+    // so the next real repro produces hard evidence instead of another
+    // guess. Always active (not gated on debugLogging) so it can't be
+    // accidentally left off during a repro.
+    private Transform diagLegBone;
+    private Quaternion lastLegBoneRot;
+    private int lastAnimStateHash = -1;
+    private float boneFrozenSince = -1f;
+    private float nextAnimDiagLogTime;
+
     void Start()
     {
         if (agent == null) agent = GetComponent<NavMeshAgent>();
@@ -116,6 +134,9 @@ public class DogAI : UdonSharpBehaviour
             agent.acceleration = config.acceleration;
         }
 
+        diagLegBone = FindByName(transform, "leg_f.L");
+        if (diagLegBone != null) lastLegBoneRot = diagLegBone.localRotation;
+
         ScheduleNextWander();
         ScheduleNextAgility();
         ApplyActionStateLocal();
@@ -127,8 +148,24 @@ public class DogAI : UdonSharpBehaviour
                 " animator=" + (animator != null) + " mouthSocket=" + (mouthSocket != null) +
                 " foodBowl=" + (foodBowl != null) + " waterBowl=" + (waterBowl != null) +
                 " agilityWaypoints=" + (agilityWaypoints != null ? agilityWaypoints.Length : -1) +
-                " isOwner=" + Networking.IsOwner(gameObject));
+                " isOwner=" + Networking.IsOwner(gameObject) +
+                " diagLegBone=" + (diagLegBone != null) +
+                " animCullingMode=" + (animator != null ? animator.cullingMode.ToString() : "n/a") +
+                " animApplyRootMotion=" + (animator != null && animator.applyRootMotion));
         }
+    }
+
+    // GetComponentsInChildren-based lookup instead of a recursive walk -
+    // Udon has historically not supported recursive UdonSharp method calls
+    // reliably, so avoid that shape entirely here.
+    private Transform FindByName(Transform root, string name)
+    {
+        Transform[] all = root.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < all.Length; i++)
+        {
+            if (all[i].name == name) return all[i];
+        }
+        return null;
     }
 
     void Update()
@@ -139,6 +176,7 @@ public class DogAI : UdonSharpBehaviour
     public void DebugTick()
     {
         UpdateAnimSpeedFromMovement();
+        LogAnimDiagnostics();
 
         if (debugLogging && Time.time >= nextDebugLogTime)
         {
@@ -214,6 +252,66 @@ public class DogAI : UdonSharpBehaviour
 
         currentAnimSpeed = Mathf.Lerp(currentAnimSpeed, instSpeed, 1f - Mathf.Exp(-10f * dt));
         if (animator != null) animator.SetFloat("Speed", currentAnimSpeed);
+    }
+
+    // See the "Animation self-diagnostics" field block for why this exists.
+    // Runs every frame, unconditionally, regardless of debugLogging.
+    private void LogAnimDiagnostics()
+    {
+        if (animator == null) return;
+
+        AnimatorStateInfo info = animator.GetCurrentAnimatorStateInfo(0);
+
+        if (info.fullPathHash != lastAnimStateHash)
+        {
+            Debug.Log("[DogAI][ANIM] STATE CHANGE at t=" + Time.time.ToString("F2") +
+                " newStateHash=" + info.fullPathHash + " task=" + TaskName(task) +
+                " ActionState=" + syncedActionState + " isOwner=" + Networking.IsOwner(gameObject));
+            lastAnimStateHash = info.fullPathHash;
+        }
+
+        float boneDelta = -1f;
+        if (diagLegBone != null)
+        {
+            boneDelta = Quaternion.Angle(lastLegBoneRot, diagLegBone.localRotation);
+            lastLegBoneRot = diagLegBone.localRotation;
+        }
+
+        bool meaningfullyMoving = currentAnimSpeed > 0.3f;
+        if (diagLegBone != null && meaningfullyMoving && boneDelta < 0.03f)
+        {
+            if (boneFrozenSince < 0f) boneFrozenSince = Time.time;
+            if (Time.time - boneFrozenSince > 0.5f)
+            {
+                Debug.LogWarning("[DogAI][ANIM-FREEZE-DETECTED] leg bone hasn't rotated for " +
+                    (Time.time - boneFrozenSince).ToString("F2") + "s while Speed=" + currentAnimSpeed.ToString("F2") +
+                    " task=" + TaskName(task) + " ActionState=" + syncedActionState +
+                    " isOwner=" + Networking.IsOwner(gameObject) +
+                    " animEnabled=" + animator.enabled + " animatorGOActive=" + animator.gameObject.activeInHierarchy +
+                    " cullingMode=" + animator.cullingMode + " animatorSpeed=" + animator.speed +
+                    " applyRootMotion=" + animator.applyRootMotion +
+                    " controllerId=" + (animator.runtimeAnimatorController != null ? animator.runtimeAnimatorController.GetInstanceID() : 0) +
+                    " carrying=" + (carriedBall != null) + " normalizedTime=" + info.normalizedTime.ToString("F2") +
+                    " inTransition=" + animator.IsInTransition(0) +
+                    " agentVel=" + (agent != null ? agent.velocity.magnitude.ToString("F2") : "n/a"));
+                // Only warn once per continuous freeze, not every single frame it persists.
+                boneFrozenSince = Time.time - 0.4f;
+            }
+        }
+        else
+        {
+            boneFrozenSince = -1f;
+        }
+
+        if (debugLogging && Time.time >= nextAnimDiagLogTime)
+        {
+            nextAnimDiagLogTime = Time.time + 1f;
+            Debug.Log("[DogAI][ANIM] t=" + Time.time.ToString("F2") + " task=" + TaskName(task) +
+                " ActionState=" + syncedActionState + " Speed=" + currentAnimSpeed.ToString("F2") +
+                " normTime=" + info.normalizedTime.ToString("F2") + " boneDelta=" + boneDelta.ToString("F3") +
+                " isOwner=" + Networking.IsOwner(gameObject) + " carrying=" + (carriedBall != null) +
+                " animEnabled=" + animator.enabled + " cullMode=" + animator.cullingMode);
+        }
     }
 
     private void DecayNeeds()

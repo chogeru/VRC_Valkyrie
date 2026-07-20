@@ -22,6 +22,7 @@ public class DogBall : UdonSharpBehaviour
     public bool heldByPlayer;
 
     private VRC_Pickup pickup;
+    private Collider ballCollider;
     private bool carried;
 
     public bool debugLogging = true;
@@ -31,6 +32,7 @@ public class DogBall : UdonSharpBehaviour
     {
         if (rb == null) rb = GetComponent<Rigidbody>();
         pickup = GetComponent<VRC_Pickup>();
+        ballCollider = GetComponent<Collider>();
     }
 
     void Update()
@@ -64,6 +66,11 @@ public class DogBall : UdonSharpBehaviour
     {
         carried = state;
         if (pickup != null) pickup.pickupable = !state;
+        // Disable the physical collider while carried - it stays kinematic
+        // and glued to the mouth socket every frame, so a live collider can
+        // only ever generate spurious contacts against the dog's own
+        // CapsuleCollider or ground geometry as it's dragged through them.
+        if (ballCollider != null) ballCollider.enabled = !state;
         if (rb != null)
         {
             rb.isKinematic = state;
