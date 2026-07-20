@@ -105,19 +105,18 @@ public class DogAI : UdonSharpBehaviour
     private bool agilityJumpFiredForCurrentLeg;
 
     // --- Animation self-diagnostics -----------------------------------------
-    // Every previous verification pass (parameter reads, SendCustomEvent
-    // triggers, edit-time-triggered Play Mode tests) has shown the state
-    // machine and Speed param advancing correctly, yet the user keeps
-    // reporting frozen legs while carrying. Since the failure hasn't been
-    // reproducible from this side, this block watches a real leg bone's
-    // local rotation every frame and SCREAMS in the console (LogWarning)
-    // the moment it detects Speed>0 without the bone actually moving, along
-    // with a full dump of every setting that could plausibly cause that -
-    // so the next real repro produces hard evidence instead of another
-    // guess. Always active (not gated on debugLogging) so it can't be
+    // Watches all four leg bones every frame and SCREAMS in the console
+    // (LogWarning) the moment it detects Speed>0 without ANY of them
+    // actually moving, along with a full dump of every setting that could
+    // plausibly cause that. Tracking all four (and requiring ALL of them to
+    // be still) instead of just one is deliberate: a single leg legitimately
+    // holds still for a few hundred ms during its own gait stance phase -
+    // monitoring only leg_f.L produced false "frozen" alarms during that
+    // phase even while the dog was visibly walking normally on the other
+    // three legs. Always active (not gated on debugLogging) so it can't be
     // accidentally left off during a repro.
-    private Transform diagLegBone;
-    private Quaternion lastLegBoneRot;
+    private Transform[] diagLegBones;
+    private Quaternion[] lastLegBoneRot;
     private int lastAnimStateHash = -1;
     private float boneFrozenSince = -1f;
     private float nextAnimDiagLogTime;
@@ -134,8 +133,14 @@ public class DogAI : UdonSharpBehaviour
             agent.acceleration = config.acceleration;
         }
 
-        diagLegBone = FindByName(transform, "leg_f.L");
-        if (diagLegBone != null) lastLegBoneRot = diagLegBone.localRotation;
+        string[] legBoneNames = new string[] { "leg_f.L", "leg_f.R", "leg_b.L", "leg_b.R" };
+        diagLegBones = new Transform[legBoneNames.Length];
+        lastLegBoneRot = new Quaternion[legBoneNames.Length];
+        for (int i = 0; i < legBoneNames.Length; i++)
+        {
+            diagLegBones[i] = FindByName(transform, legBoneNames[i]);
+            if (diagLegBones[i] != null) lastLegBoneRot[i] = diagLegBones[i].localRotation;
+        }
 
         ScheduleNextWander();
         ScheduleNextAgility();
@@ -149,7 +154,7 @@ public class DogAI : UdonSharpBehaviour
                 " foodBowl=" + (foodBowl != null) + " waterBowl=" + (waterBowl != null) +
                 " agilityWaypoints=" + (agilityWaypoints != null ? agilityWaypoints.Length : -1) +
                 " isOwner=" + Networking.IsOwner(gameObject) +
-                " diagLegBone=" + (diagLegBone != null) +
+                " diagLegBones=" + (diagLegBones != null && diagLegBones[0] != null) +
                 " animCullingMode=" + (animator != null ? animator.cullingMode.ToString() : "n/a") +
                 " animApplyRootMotion=" + (animator != null && animator.applyRootMotion));
         }
@@ -270,20 +275,29 @@ public class DogAI : UdonSharpBehaviour
             lastAnimStateHash = info.fullPathHash;
         }
 
+        // Max delta across all four legs - a real freeze means every leg is
+        // static, not just the one currently in its stance phase.
         float boneDelta = -1f;
-        if (diagLegBone != null)
+        bool haveLegBones = diagLegBones != null && diagLegBones[0] != null;
+        if (haveLegBones)
         {
-            boneDelta = Quaternion.Angle(lastLegBoneRot, diagLegBone.localRotation);
-            lastLegBoneRot = diagLegBone.localRotation;
+            boneDelta = 0f;
+            for (int i = 0; i < diagLegBones.Length; i++)
+            {
+                if (diagLegBones[i] == null) continue;
+                float d = Quaternion.Angle(lastLegBoneRot[i], diagLegBones[i].localRotation);
+                if (d > boneDelta) boneDelta = d;
+                lastLegBoneRot[i] = diagLegBones[i].localRotation;
+            }
         }
 
         bool meaningfullyMoving = currentAnimSpeed > 0.3f;
-        if (diagLegBone != null && meaningfullyMoving && boneDelta < 0.03f)
+        if (haveLegBones && meaningfullyMoving && boneDelta < 0.03f)
         {
             if (boneFrozenSince < 0f) boneFrozenSince = Time.time;
             if (Time.time - boneFrozenSince > 0.5f)
             {
-                Debug.LogWarning("[DogAI][ANIM-FREEZE-DETECTED] leg bone hasn't rotated for " +
+                Debug.LogWarning("[DogAI][ANIM-FREEZE-DETECTED] all 4 leg bones static for " +
                     (Time.time - boneFrozenSince).ToString("F2") + "s while Speed=" + currentAnimSpeed.ToString("F2") +
                     " task=" + TaskName(task) + " ActionState=" + syncedActionState +
                     " isOwner=" + Networking.IsOwner(gameObject) +
