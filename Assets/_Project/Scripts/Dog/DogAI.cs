@@ -196,7 +196,12 @@ public class DogAI : UdonSharpBehaviour
         // script's Update() was skipped/delayed for a frame (small dt divided
         // into a position delta that had actually accumulated over several
         // real frames), which threw off the locomotion blend tree's timing.
-        if (agent != null && agent.enabled && agent.isOnNavMesh)
+        // Only the owner's agent is ever given a destination (RunAi() below
+        // is owner-gated), so on every other client agent.velocity sits at 0
+        // forever even while VRC Object Sync visibly moves the transform -
+        // those clients must fall back to position-diffing instead, or the
+        // dog reads as frozen in Idle for everyone except the owner.
+        if (Networking.IsOwner(gameObject) && agent != null && agent.enabled && agent.isOnNavMesh)
         {
             instSpeed = agent.velocity.magnitude;
         }
