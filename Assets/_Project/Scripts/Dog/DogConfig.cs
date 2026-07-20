@@ -46,6 +46,12 @@ public class DogConfig : UdonSharpBehaviour
     public float wanderIntervalMax = 8f;
     [Range(0f, 1f)] public float idleClipChance = 0.3f;
 
+    [Header("Greeting")]
+    [Tooltip("A player standing this close while the dog is idle triggers a happy greeting bark.")]
+    public float greetDistance = 2.5f;
+    [Tooltip("Minimum time between greeting barks, so a player standing nearby doesn't get barked at constantly.")]
+    public float greetCooldownSeconds = 20f;
+
     [Header("Fetch")]
     public float ballPickupDistance = 0.6f;
     public float ballReturnDistance = 1.2f;

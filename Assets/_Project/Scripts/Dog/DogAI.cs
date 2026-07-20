@@ -24,6 +24,7 @@ public class DogAI : UdonSharpBehaviour
     public const int ACTION_DIG = 5;
     public const int ACTION_CARRY_BALL = 6;
     public const int ACTION_SLEEP = 7;
+    public const int ACTION_SCRATCH = 8;
 
     // Local-only high level task the owner is currently running.
     private const int TASK_IDLE = 0;
@@ -42,6 +43,10 @@ public class DogAI : UdonSharpBehaviour
     private const int TASK_SIT_AMBIENT = 13;
     private const int TASK_LIE_AMBIENT = 14;
     private const int TASK_PET_REACTION = 15;
+    private const int TASK_SCRATCH_AMBIENT = 16;
+
+    // How long the one-shot Scratching clip actually plays (ShibaInu_anim_IP.fbx).
+    private const float SCRATCH_CLIP_DURATION = 6.04f;
 
     [Header("Debug")]
     [Tooltip("Logs task/state transitions and a periodic status line to the console. Turn off before publishing.")]
@@ -93,8 +98,14 @@ public class DogAI : UdonSharpBehaviour
     private float nextAgilityTime;
     private float taskEndTime;
 
+    private float nextGreetCheckTime;
+    private float nextGreetTime;
+
     private DogBall targetBall;
     private DogBall carriedBall;
+
+    private VRCPlayerApi returnBallTarget;
+    private float nextReturnTargetRefresh;
 
     private Transform toyTarget;
 
@@ -224,6 +235,7 @@ public class DogAI : UdonSharpBehaviour
         if (t == TASK_SIT_AMBIENT) return "SIT_AMBIENT";
         if (t == TASK_LIE_AMBIENT) return "LIE_AMBIENT";
         if (t == TASK_PET_REACTION) return "PET_REACTION";
+        if (t == TASK_SCRATCH_AMBIENT) return "SCRATCH_AMBIENT";
         return "UNKNOWN(" + t + ")";
     }
 
@@ -373,7 +385,7 @@ public class DogAI : UdonSharpBehaviour
         if (task == TASK_GO_TO_BONE) { TickGoToBone(); return; }
         if (task == TASK_CHEWING) { TickChewing(); return; }
         if (task == TASK_AGILITY) { TickAgility(); return; }
-        if (task == TASK_SIT_AMBIENT || task == TASK_LIE_AMBIENT || task == TASK_PET_REACTION) { TickTimedIdleReturn(); return; }
+        if (task == TASK_SIT_AMBIENT || task == TASK_LIE_AMBIENT || task == TASK_PET_REACTION || task == TASK_SCRATCH_AMBIENT) { TickTimedIdleReturn(); return; }
 
         // Free to pick a new priority task, highest first.
         bool foodReady = foodBowl != null && foodBowl.filled;
@@ -416,6 +428,7 @@ public class DogAI : UdonSharpBehaviour
         hasSetDestination = false;
         if (agent != null && config != null)
         {
+            agent.isStopped = false;
             agent.speed = config.fetchMoveSpeed;
             agent.SetDestination(targetBall.transform.position);
         }
@@ -461,9 +474,21 @@ public class DogAI : UdonSharpBehaviour
     private void TickReturnBall()
     {
         if (agent == null) return;
-        VRCPlayerApi target = FindNearestPlayer();
+
+        // FindNearestPlayer() allocates a fresh VRCPlayerApi[] every call - fine
+        // as an occasional lookup, but calling it every single Update() frame
+        // for the whole return-the-ball walk (which can take several seconds)
+        // meant a GC allocation every frame, which shows up as visible
+        // stutter. Only re-pick the nearest player a few times a second;
+        // GetPosition() on the cached reference every frame is free.
+        if (Time.time >= nextReturnTargetRefresh || returnBallTarget == null || !returnBallTarget.IsValid())
+        {
+            nextReturnTargetRefresh = Time.time + 0.5f;
+            returnBallTarget = FindNearestPlayer();
+        }
+
         Vector3 destPos = homeCenter != null ? homeCenter.position : transform.position;
-        if (target != null) destPos = target.GetPosition();
+        if (returnBallTarget != null && returnBallTarget.IsValid()) destPos = returnBallTarget.GetPosition();
         SetDestinationIfMoved(destPos);
 
         if (!agent.pathPending && agent.remainingDistance <= config.ballReturnDistance)
@@ -479,6 +504,11 @@ public class DogAI : UdonSharpBehaviour
             carriedBall.SetCarried(false);
             carriedBall = null;
         }
+        // ballReturnDistance's arrival tolerance can be a meter or more, so
+        // without this the dog snaps into the static Sit pose while the
+        // agent is still gliding the rest of the way to its destination -
+        // it visibly skates across the ground while "sitting".
+        if (agent != null) agent.isStopped = true;
         SetActionState(ACTION_SIT);
         task = TASK_SIT_AMBIENT;
         taskEndTime = Time.time + 2f;
@@ -496,6 +526,7 @@ public class DogAI : UdonSharpBehaviour
         task = TASK_GO_EAT;
         if (agent != null && config != null)
         {
+            agent.isStopped = false;
             agent.speed = config.wanderMoveSpeed;
             agent.SetDestination(foodBowl.transform.position);
         }
@@ -506,6 +537,7 @@ public class DogAI : UdonSharpBehaviour
         if (foodBowl == null || agent == null) { task = TASK_IDLE; return; }
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.15f)
         {
+            agent.isStopped = true;
             FaceTarget(foodBowl.transform.position);
             task = TASK_EATING;
             SetActionState(ACTION_EAT);
@@ -536,6 +568,7 @@ public class DogAI : UdonSharpBehaviour
         task = TASK_GO_DRINK;
         if (agent != null && config != null)
         {
+            agent.isStopped = false;
             agent.speed = config.wanderMoveSpeed;
             agent.SetDestination(waterBowl.transform.position);
         }
@@ -546,6 +579,7 @@ public class DogAI : UdonSharpBehaviour
         if (waterBowl == null || agent == null) { task = TASK_IDLE; return; }
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.15f)
         {
+            agent.isStopped = true;
             FaceTarget(waterBowl.transform.position);
             task = TASK_DRINKING;
             SetActionState(ACTION_DRINK);
@@ -577,6 +611,7 @@ public class DogAI : UdonSharpBehaviour
     {
         task = TASK_GO_SLEEP;
         if (agent == null || config == null) return;
+        agent.isStopped = false;
         agent.speed = config.wanderMoveSpeed;
         Vector3 dest = sleepPoint != null ? sleepPoint.position : (homeCenter != null ? homeCenter.position : transform.position);
         agent.SetDestination(dest);
@@ -587,6 +622,7 @@ public class DogAI : UdonSharpBehaviour
         if (agent == null) return;
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.3f)
         {
+            agent.isStopped = true;
             task = TASK_SLEEPING;
             SetActionState(ACTION_SLEEP);
             taskEndTime = Time.time + config.sleepMinDuration;
@@ -610,6 +646,7 @@ public class DogAI : UdonSharpBehaviour
         task = TASK_GO_TO_BONE;
         if (agent != null && config != null)
         {
+            agent.isStopped = false;
             agent.speed = config.wanderMoveSpeed;
             agent.SetDestination(toyTarget.position);
         }
@@ -620,6 +657,7 @@ public class DogAI : UdonSharpBehaviour
         if (toyTarget == null || agent == null) { task = TASK_IDLE; return; }
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.15f)
         {
+            agent.isStopped = true;
             FaceTarget(toyTarget.position);
             task = TASK_CHEWING;
             SetActionState(ACTION_DIG);
@@ -646,6 +684,7 @@ public class DogAI : UdonSharpBehaviour
         task = TASK_AGILITY;
         agilityIndex = 0;
         agilityJumpFiredForCurrentLeg = false;
+        agent.isStopped = false;
         agent.speed = config.agilityMoveSpeed;
         if (agilityWaypoints[0] != null) agent.SetDestination(agilityWaypoints[0].position);
     }
@@ -704,12 +743,15 @@ public class DogAI : UdonSharpBehaviour
             return;
         }
 
+        TryGreetNearbyPlayer();
+
         if (Time.time >= nextWanderTime)
         {
             float r = Random.value;
             if (r < 0.12f) { BeginAmbientSit(); return; }
             if (r < 0.22f) { BeginAmbientLie(); return; }
             if (r < 0.30f) { Bark(); ScheduleNextWander(); return; }
+            if (r < 0.36f) { BeginAmbientScratch(); return; }
             BeginWander();
         }
     }
@@ -723,6 +765,7 @@ public class DogAI : UdonSharpBehaviour
         NavMeshHit hit;
         if (NavMesh.SamplePosition(randomPoint, out hit, config.wanderRadius, NavMesh.AllAreas))
         {
+            agent.isStopped = false;
             agent.speed = config.wanderMoveSpeed;
             agent.SetDestination(hit.position);
             task = TASK_WANDER;
@@ -749,6 +792,18 @@ public class DogAI : UdonSharpBehaviour
         taskEndTime = Time.time + Random.Range(3f, 8f);
     }
 
+    // One-shot "scratch an itch" flavor gimmick, same shape as
+    // BeginAmbientSit/Lie - only entered from Idle/Wander (see
+    // TickIdleWander), so the agent is already stationary and there's no
+    // static-pose skating risk to guard against here (unlike DropCarriedBall
+    // and ReactToPet, which can fire mid-move).
+    private void BeginAmbientScratch()
+    {
+        task = TASK_SCRATCH_AMBIENT;
+        SetActionState(ACTION_SCRATCH);
+        taskEndTime = Time.time + SCRATCH_CLIP_DURATION;
+    }
+
     private void TickTimedIdleReturn()
     {
         if (Time.time >= taskEndTime)
@@ -764,6 +819,19 @@ public class DogAI : UdonSharpBehaviour
         float lo = config != null ? config.wanderIntervalMin : 3f;
         float hi = config != null ? config.wanderIntervalMax : 8f;
         nextWanderTime = Time.time + Random.Range(lo, hi);
+        RandomizeIdleVariant();
+    }
+
+    // Idle state's motion is now a Simple 1D blend tree (IdleVariety) keyed on
+    // the "IdleVariant" float, one child per unused idle clip in
+    // ShibaInu_anim_IP.fbx (Idle_1/2/3/4/6/7) at integer thresholds 0-5.
+    // Setting it to an exact integer selects that single clip with no blend
+    // bleed - picking a fresh one each time the dog is about to sit at Idle
+    // for a while (rather than every frame) keeps the loop from visibly
+    // popping mid-loop while still giving idle variety over time.
+    private void RandomizeIdleVariant()
+    {
+        if (animator != null) animator.SetFloat("IdleVariant", Random.Range(0, 6));
     }
 
     // --- Petting ------------------------------------------------------------
@@ -787,8 +855,12 @@ public class DogAI : UdonSharpBehaviour
         syncedAffection = Mathf.Clamp01(syncedAffection + config.affectionPerPet);
         RequestSerialization();
 
-        if (task == TASK_IDLE || task == TASK_WANDER || task == TASK_SIT_AMBIENT || task == TASK_LIE_AMBIENT)
+        if (task == TASK_IDLE || task == TASK_WANDER || task == TASK_SIT_AMBIENT || task == TASK_LIE_AMBIENT || task == TASK_SCRATCH_AMBIENT)
         {
+            // Being pet mid-wander must not leave the agent gliding toward its
+            // old destination while the static Sit pose plays - same skating
+            // issue as DropCarriedBall (see its comment).
+            if (agent != null) agent.isStopped = true;
             task = TASK_PET_REACTION;
             SetActionState(ACTION_SIT);
             taskEndTime = Time.time + config.petReactionDuration;
@@ -840,6 +912,25 @@ public class DogAI : UdonSharpBehaviour
         return nearest;
     }
 
+    // Only called while genuinely idle (TASK_WANDER returns before reaching
+    // this), so a fresh FindNearestPlayer() here is at most twice a second -
+    // no need for the same result-caching TickReturnBall() uses for its much
+    // longer, every-Update()-tick fetch walk.
+    private void TryGreetNearbyPlayer()
+    {
+        if (config == null || Time.time < nextGreetCheckTime || Time.time < nextGreetTime) return;
+        nextGreetCheckTime = Time.time + 0.5f;
+
+        VRCPlayerApi nearest = FindNearestPlayer();
+        if (nearest == null) return;
+
+        if (Vector3.Distance(transform.position, nearest.GetPosition()) <= config.greetDistance)
+        {
+            Bark();
+            nextGreetTime = Time.time + config.greetCooldownSeconds;
+        }
+    }
+
     // Local-only flavor bark (like ZombieAI's ambient sounds) - plays for
     // whoever currently owns the dog, not broadcast to everyone. The
     // network-broadcast happy bark on pet is handled separately via ReactToPet.
@@ -872,7 +963,29 @@ public class DogAI : UdonSharpBehaviour
     private void ApplyActionStateLocal()
     {
         lastAppliedActionState = syncedActionState;
-        if (animator != null) animator.SetInteger("ActionState", syncedActionState);
+        if (animator == null) return;
+        animator.SetInteger("ActionState", syncedActionState);
+
+        // Entering Sit plays a one-shot Sitting_start -> Sitting_loop_1 hand-off
+        // in the Animator rather than snapping straight into the loop (see
+        // ShibaInu_Gameplay.controller's SitStart/SitEnd states). That entry is
+        // gated on this Trigger rather than "ActionState==1" directly (which is
+        // how every other ambient pose still works) because a persistent int
+        // condition on an Any State transition can only be guarded against
+        // re-firing by "Can Transition To Self", and that guard only works when
+        // the transition's destination IS the state you're currently sitting in -
+        // once past SitStart into the loop state, the destination (SitStart) no
+        // longer matches the active state, so it would restart Sitting_start
+        // every single frame for as long as ActionState stayed 1. A Trigger
+        // self-consumes on fire, so it only ever fires once per entry. This runs
+        // here (not at each call site that sets ACTION_SIT) so remote clients get
+        // it too, exactly once, whenever OnDeserialization applies a real change.
+        if (syncedActionState == ACTION_SIT) animator.SetTrigger("SitTrigger");
+        // Same start->loop hand-off as Sit, see the comment above - Lie and
+        // Dig also now have their own Start/End sequences in the controller.
+        if (syncedActionState == ACTION_LIE) animator.SetTrigger("LieTrigger");
+        if (syncedActionState == ACTION_DIG) animator.SetTrigger("DigTrigger");
+        if (syncedActionState == ACTION_SLEEP) animator.SetTrigger("SleepTrigger");
     }
 
     public float GetHunger() { return syncedHunger; }
