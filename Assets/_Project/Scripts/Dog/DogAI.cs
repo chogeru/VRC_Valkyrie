@@ -98,6 +98,9 @@ public class DogAI : UdonSharpBehaviour
 
     private Transform toyTarget;
 
+    private Vector3 lastSetDestination;
+    private bool hasSetDestination;
+
     private int agilityIndex;
     private bool agilityJumpFiredForCurrentLeg;
 
@@ -293,6 +296,7 @@ public class DogAI : UdonSharpBehaviour
     private void BeginGoToBall()
     {
         task = TASK_GO_TO_BALL;
+        hasSetDestination = false;
         if (agent != null && config != null)
         {
             agent.speed = config.fetchMoveSpeed;
@@ -316,7 +320,7 @@ public class DogAI : UdonSharpBehaviour
             return;
         }
 
-        agent.SetDestination(targetBall.transform.position);
+        SetDestinationIfMoved(targetBall.transform.position);
         if (!agent.pathPending && agent.remainingDistance <= config.ballPickupDistance)
         {
             if (!Networking.IsOwner(targetBall.gameObject)) Networking.SetOwner(Networking.LocalPlayer, targetBall.gameObject);
@@ -331,6 +335,7 @@ public class DogAI : UdonSharpBehaviour
             // bone (see RunAi), which reads as "carrying" on its own.
             SetActionState(ACTION_NONE);
             task = TASK_RETURN_BALL;
+            hasSetDestination = false;
             Bark();
             if (debugLogging) Debug.Log("[DogAI] Picked up ball, now returning.");
         }
@@ -342,7 +347,7 @@ public class DogAI : UdonSharpBehaviour
         VRCPlayerApi target = FindNearestPlayer();
         Vector3 destPos = homeCenter != null ? homeCenter.position : transform.position;
         if (target != null) destPos = target.GetPosition();
-        agent.SetDestination(destPos);
+        SetDestinationIfMoved(destPos);
 
         if (!agent.pathPending && agent.remainingDistance <= config.ballReturnDistance)
         {
@@ -685,6 +690,21 @@ public class DogAI : UdonSharpBehaviour
         dir.y = 0f;
         if (dir.sqrMagnitude < 0.0001f) return;
         transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+    }
+
+    // Calling NavMeshAgent.SetDestination() every single tick - even to a
+    // point that hasn't meaningfully moved (a stationary ball, a player who
+    // only jittered a few centimeters) - forces the agent to keep
+    // re-querying/re-committing its path instead of just running it, which
+    // shows up as stuttery agent.velocity and, by extension, a locomotion
+    // blend that never settles into a steady Walk/Run pose. Only repath when
+    // the target has actually moved.
+    private void SetDestinationIfMoved(Vector3 worldPos)
+    {
+        if (hasSetDestination && (worldPos - lastSetDestination).sqrMagnitude < 0.04f) return; // 0.2m
+        lastSetDestination = worldPos;
+        hasSetDestination = true;
+        agent.SetDestination(worldPos);
     }
 
     private VRCPlayerApi FindNearestPlayer()
