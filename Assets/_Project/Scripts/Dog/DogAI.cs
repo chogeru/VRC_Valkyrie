@@ -323,7 +323,13 @@ public class DogAI : UdonSharpBehaviour
             targetBall.SetCarried(true);
             carriedBall = targetBall;
             targetBall = null;
-            SetActionState(ACTION_CARRY_BALL);
+            // Deliberately NOT setting ActionState=CarryBall here - that state
+            // is a static held-still pose (Pick_up_idle) with no movement
+            // blend, so using it for the whole run back left the dog's legs
+            // frozen while it visibly moved. Locomotion (ActionState=None)
+            // keeps animating normally; the ball itself follows the mouth
+            // bone (see RunAi), which reads as "carrying" on its own.
+            SetActionState(ACTION_NONE);
             task = TASK_RETURN_BALL;
             Bark();
             if (debugLogging) Debug.Log("[DogAI] Picked up ball, now returning.");

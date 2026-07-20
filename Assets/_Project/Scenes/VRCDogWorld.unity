@@ -844,18 +844,6 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 194767679}
   m_PrefabAsset: {fileID: 0}
---- !u!134 &223516231
-PhysicMaterial:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: ' (Instance)'
-  dynamicFriction: 0.6
-  staticFriction: 0.6
-  bounciness: 0
-  frictionCombine: 0
-  bounceCombine: 0
 --- !u!1 &279614536
 GameObject:
   m_ObjectHideFlags: 0
@@ -2729,6 +2717,18 @@ MonoBehaviour:
   _udonSharpBackingUdonBehaviour: {fileID: 1910851100}
   order: 0
   isJumpPoint: 0
+--- !u!134 &2018146271
+PhysicMaterial:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: ' (Instance) (Instance)'
+  dynamicFriction: 0.6
+  staticFriction: 0.6
+  bounciness: 0
+  frictionCombine: 0
+  bounceCombine: 0
 --- !u!1001 &2041533417
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -3014,7 +3014,7 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Material
       value: 
-      objectReference: {fileID: 223516231}
+      objectReference: {fileID: 2018146271}
     - target: {fileID: 5922955069010937513, guid: 769172ee417093641bebbcf3b03a140c,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -3157,8 +3157,8 @@ MonoBehaviour:
   pickupDropEventBroadcastType: 0
   PickupEventName: 
   DropEventName: 
-  ThrowVelocityBoostMinSpeed: 1
-  ThrowVelocityBoostScale: 1
+  ThrowVelocityBoostMinSpeed: 0.5
+  ThrowVelocityBoostScale: 2.5
   currentlyHeldBy: {fileID: 0}
   pickupable: 1
   proximity: 2
@@ -3224,7 +3224,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2102897543}
   serializedVersion: 4
-  m_Mass: 1
+  m_Mass: 0.3
   m_Drag: 0
   m_AngularDrag: 0.05
   m_CenterOfMass: {x: 0, y: 0, z: 0}
