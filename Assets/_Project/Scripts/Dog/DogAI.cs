@@ -25,6 +25,7 @@ public class DogAI : UdonSharpBehaviour
     public const int ACTION_CARRY_BALL = 6;
     public const int ACTION_SLEEP = 7;
     public const int ACTION_SCRATCH = 8;
+    public const int ACTION_TREAT = 9;
 
     // Local-only high level task the owner is currently running.
     private const int TASK_IDLE = 0;
@@ -44,6 +45,8 @@ public class DogAI : UdonSharpBehaviour
     private const int TASK_LIE_AMBIENT = 14;
     private const int TASK_PET_REACTION = 15;
     private const int TASK_SCRATCH_AMBIENT = 16;
+    private const int TASK_GO_TO_TREAT = 17;
+    private const int TASK_EATING_TREAT = 18;
 
     // How long the one-shot Scratching clip actually plays (ShibaInu_anim_IP.fbx).
     private const float SCRATCH_CLIP_DURATION = 6.04f;
@@ -67,6 +70,8 @@ public class DogAI : UdonSharpBehaviour
     public DogBall ball;
     [Tooltip("The chew bone - DogAI polls toy.wasGiven directly each tick.")]
     public DogToy toy;
+    [Tooltip("A treat prop - DogAI polls treat.wasOffered/heldByPlayer directly each tick, same shape as ball.")]
+    public DogTreat treat;
 
     [Header("Home / Rest")]
     public Transform homeCenter;
@@ -103,6 +108,7 @@ public class DogAI : UdonSharpBehaviour
 
     private DogBall targetBall;
     private DogBall carriedBall;
+    private DogTreat targetTreat;
 
     private VRCPlayerApi returnBallTarget;
     private float nextReturnTargetRefresh;
@@ -163,6 +169,7 @@ public class DogAI : UdonSharpBehaviour
                 " agent.isOnNavMesh=" + (agent != null && agent.isOnNavMesh) +
                 " animator=" + (animator != null) + " mouthSocket=" + (mouthSocket != null) +
                 " foodBowl=" + (foodBowl != null) + " waterBowl=" + (waterBowl != null) +
+                " treat=" + (treat != null) +
                 " agilityWaypoints=" + (agilityWaypoints != null ? agilityWaypoints.Length : -1) +
                 " isOwner=" + Networking.IsOwner(gameObject) +
                 " diagLegBones=" + (diagLegBones != null && diagLegBones[0] != null) +
@@ -236,6 +243,8 @@ public class DogAI : UdonSharpBehaviour
         if (t == TASK_LIE_AMBIENT) return "LIE_AMBIENT";
         if (t == TASK_PET_REACTION) return "PET_REACTION";
         if (t == TASK_SCRATCH_AMBIENT) return "SCRATCH_AMBIENT";
+        if (t == TASK_GO_TO_TREAT) return "GO_TO_TREAT";
+        if (t == TASK_EATING_TREAT) return "EATING_TREAT";
         return "UNKNOWN(" + t + ")";
     }
 
@@ -376,6 +385,8 @@ public class DogAI : UdonSharpBehaviour
 
         if (task == TASK_GO_TO_BALL) { TickGoToBall(); return; }
         if (task == TASK_RETURN_BALL) { TickReturnBall(); return; }
+        if (task == TASK_GO_TO_TREAT) { TickGoToTreat(); return; }
+        if (task == TASK_EATING_TREAT) { TickEatingTreat(); return; }
         if (task == TASK_GO_EAT) { TickGoEat(); return; }
         if (task == TASK_EATING) { TickEating(); return; }
         if (task == TASK_GO_DRINK) { TickGoDrink(); return; }
@@ -402,6 +413,14 @@ public class DogAI : UdonSharpBehaviour
             ball.wasThrown = false;
             if (debugLogging) Debug.Log("[DogAI] Ball throw detected at " + ball.transform.position);
             BeginGoToBall();
+            return;
+        }
+        if (treat != null && treat.wasOffered && !treat.heldByPlayer)
+        {
+            targetTreat = treat;
+            treat.wasOffered = false;
+            if (debugLogging) Debug.Log("[DogAI] Treat offered at " + treat.transform.position);
+            BeginGoToTreat();
             return;
         }
         if (config != null && syncedHunger < config.needThreshold && foodReady) { BeginGoEat(); return; }
@@ -514,6 +533,69 @@ public class DogAI : UdonSharpBehaviour
         taskEndTime = Time.time + 2f;
         Bark();
         if (debugLogging) Debug.Log("[DogAI] Dropped ball at " + transform.position);
+    }
+
+    // --- Treat / Beg ---------------------------------------------------------
+
+    private void BeginGoToTreat()
+    {
+        task = TASK_GO_TO_TREAT;
+        hasSetDestination = false;
+        if (agent != null && config != null)
+        {
+            agent.isStopped = false;
+            agent.speed = config.fetchMoveSpeed;
+            agent.SetDestination(targetTreat.transform.position);
+        }
+        if (debugLogging) Debug.Log("[DogAI] BeginGoToTreat dest=" + (targetTreat != null ? targetTreat.transform.position.ToString() : "null"));
+    }
+
+    private void TickGoToTreat()
+    {
+        if (targetTreat == null || agent == null) { task = TASK_IDLE; ScheduleNextWander(); return; }
+
+        if (targetTreat.heldByPlayer)
+        {
+            // Picked back up before the dog arrived - abandon, same as a ball
+            // grabbed mid-fetch (see TickGoToBall).
+            targetTreat = null;
+            task = TASK_IDLE;
+            ScheduleNextWander();
+            return;
+        }
+
+        SetDestinationIfMoved(targetTreat.transform.position);
+        if (!agent.pathPending && agent.remainingDistance <= config.treatEatDistance)
+        {
+            if (!Networking.IsOwner(targetTreat.gameObject)) Networking.SetOwner(Networking.LocalPlayer, targetTreat.gameObject);
+            targetTreat.Consume();
+            FaceTarget(targetTreat.transform.position);
+            // Same skating fix as DropCarriedBall/ReactToPet - stop the agent
+            // before snapping into the static Treat pose, or the dog visibly
+            // glides the last bit of remainingDistance while "frozen" eating.
+            agent.isStopped = true;
+
+            syncedHunger = Mathf.Clamp01(syncedHunger + config.treatHungerBoost);
+            syncedAffection = Mathf.Clamp01(syncedAffection + config.affectionPerTreat);
+            RequestSerialization();
+
+            SetActionState(ACTION_TREAT);
+            task = TASK_EATING_TREAT;
+            taskEndTime = Time.time + config.treatEatDuration;
+            targetTreat = null;
+            Bark();
+            if (debugLogging) Debug.Log("[DogAI] Ate treat, hunger=" + syncedHunger + " affection=" + syncedAffection);
+        }
+    }
+
+    private void TickEatingTreat()
+    {
+        if (Time.time >= taskEndTime)
+        {
+            SetActionState(ACTION_NONE);
+            task = TASK_IDLE;
+            ScheduleNextWander();
+        }
     }
 
     // --- Feeding ------------------------------------------------------------

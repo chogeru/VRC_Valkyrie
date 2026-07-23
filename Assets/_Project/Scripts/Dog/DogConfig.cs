@@ -56,6 +56,16 @@ public class DogConfig : UdonSharpBehaviour
     public float ballPickupDistance = 0.6f;
     public float ballReturnDistance = 1.2f;
 
+    [Header("Treat / Beg")]
+    [Tooltip("How close the dog must get to the offered treat before it eats it.")]
+    public float treatEatDistance = 0.6f;
+    [Tooltip("How long the Treat animation plays before the dog returns to Idle. Roughly matches the Eat_tear clip's own length (~4.17s at 24fps).")]
+    public float treatEatDuration = 4.17f;
+    [Tooltip("Hunger (0-1 scale) instantly restored by eating one treat.")]
+    public float treatHungerBoost = 0.3f;
+    [Tooltip("Affection (0-1 scale) gained from being given a treat - bigger than a single pet, since offering food is a more meaningful gesture.")]
+    public float affectionPerTreat = 0.15f;
+
     [Header("Agility Course")]
     [Tooltip("How often (seconds), on average, the dog decides to run the agility course when otherwise idle/wandering.")]
     public float agilityIntervalSeconds = 45f;
