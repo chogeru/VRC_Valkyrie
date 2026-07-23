@@ -59,6 +59,12 @@ public static class DogWorldPostProcess
 
         var go = new GameObject("PostProcessVolume");
         go.layer = 0; // Default
+
+        // DogWorld/Lighting が存在すればその下に配置する
+        var lighting = GameObject.Find("DogWorld/Lighting");
+        if (lighting != null)
+            go.transform.SetParent(lighting.transform, false);
+
         var vol = go.AddComponent<PostProcessVolume>();
         vol.isGlobal = true;
         vol.weight   = 1f;

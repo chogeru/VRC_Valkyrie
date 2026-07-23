@@ -32,12 +32,22 @@ public static class DogWorldMapBuilder
         if (env == null) { Debug.LogError("DogWorld/Environment not found"); return; }
 
         // ─── GROUND PLANE ───────────────────────────────
-        var plane = GameObject.Find("Plane");
-        if (plane != null)
+        // "Ground" (旧 Plane) を Environment 直下に確保する。
+        // ClearMap でも削除しないため、ここで再作成または参照を保持する。
+        var ground = env.transform.Find("Ground")?.gameObject
+                  ?? GameObject.Find("Ground")
+                  ?? GameObject.Find("Plane");
+        if (ground == null)
         {
-            plane.transform.localPosition = new Vector3(0f, 0f, 0f);
-            plane.transform.localScale    = new Vector3(22f, 1f, 22f); // 220×220m
+            ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            ground.name = "Ground";
+            // Default grey material is fine – it represents the road/pavement base
         }
+        ground.name = "Ground";
+        ground.transform.SetParent(env.transform, false);
+        ground.transform.localPosition = Vector3.zero;
+        ground.transform.localScale    = new Vector3(22f, 1f, 22f); // 220×220m
+        ground.transform.SetAsFirstSibling();
 
         // ─── PARK (kouenn) ──────────────────────────────
         var parkParent = new GameObject("Park");
@@ -63,12 +73,12 @@ public static class DogWorldMapBuilder
         Shader greenShader = Shader.Find("Standard")
                           ?? Shader.Find("Diffuse")
                           ?? Shader.Find("Legacy Shaders/Diffuse");
-        // Fallback: copy from existing plane material
-        if (greenShader == null && plane != null)
-            greenShader = plane.GetComponent<Renderer>()?.sharedMaterial?.shader;
+        // Fallback: copy from existing ground material
+        if (greenShader == null && ground != null)
+            greenShader = ground.GetComponent<Renderer>()?.sharedMaterial?.shader;
         var greenMat = greenShader != null
             ? new Material(greenShader)
-            : new Material(plane != null ? plane.GetComponent<Renderer>().sharedMaterial : null);
+            : new Material(ground != null ? ground.GetComponent<Renderer>().sharedMaterial : null);
         if (greenMat != null)
             greenMat.color = new Color(0.35f, 0.65f, 0.25f); // grass green
         parkGround.GetComponent<Renderer>().material = greenMat;
@@ -234,7 +244,11 @@ public static class DogWorldMapBuilder
         var env = GameObject.Find("DogWorld/Environment");
         if (env == null) return;
         for (int i = env.transform.childCount - 1; i >= 0; i--)
-            Object.DestroyImmediate(env.transform.GetChild(i).gameObject);
+        {
+            var child = env.transform.GetChild(i);
+            if (child.name == "Ground") continue; // 地面は削除しない
+            Object.DestroyImmediate(child.gameObject);
+        }
         Debug.Log("[DogWorldMapBuilder] Map cleared.");
     }
 
