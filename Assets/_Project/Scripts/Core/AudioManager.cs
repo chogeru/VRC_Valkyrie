@@ -20,6 +20,10 @@ public class AudioManager : UdonSharpBehaviour
     public string[] musicNames;
     public AudioClip[] musicClips;
 
+    [Header("Auto-Play")]
+    [Tooltip("Track name to play automatically on Start. Leave empty to disable auto-play.")]
+    public string autoPlayMusicName;
+
     [Header("SFX (one-shot, global game-flow cues)")]
     public AudioSource sfxSource;
     [Tooltip("Parallel arrays: sfxNames[i] plays sfxClips[i]. Add rows here for new SFX.")]
@@ -36,6 +40,24 @@ public class AudioManager : UdonSharpBehaviour
     {
         activeMusicSource = musicSourceA;
         previousMusicSource = musicSourceB;
+
+        // BGM must play clean - no reverb filter. Remove any AudioReverbFilter
+        // that may have been accidentally added to either music source GameObject.
+        RemoveReverbFilter(musicSourceA);
+        RemoveReverbFilter(musicSourceB);
+
+        if (!string.IsNullOrEmpty(autoPlayMusicName)) PlayMusic(autoPlayMusicName);
+    }
+
+    private void RemoveReverbFilter(AudioSource src)
+    {
+        if (src == null) return;
+        AudioReverbFilter f = src.GetComponent<AudioReverbFilter>();
+        if (f != null)
+        {
+            f.enabled = false;
+            Debug.LogWarning("[AudioManager] Disabled AudioReverbFilter on BGM source '" + src.gameObject.name + "'. BGM should play clean - remove the component from the GameObject.");
+        }
     }
 
     public void PlayMusic(string trackName)

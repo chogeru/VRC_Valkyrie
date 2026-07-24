@@ -16,6 +16,9 @@ public class WaterBowl : UdonSharpBehaviour
     [UdonSynced] public bool filled;
     private bool lastAppliedFilled;
 
+    public bool debugLogging = false;
+    private float nextDebugLogTime;
+
     void Start()
     {
         ApplyVisualLocal();
@@ -24,15 +27,23 @@ public class WaterBowl : UdonSharpBehaviour
     void Update()
     {
         if (filled != lastAppliedFilled) ApplyVisualLocal();
+
+        if (debugLogging && Time.time >= nextDebugLogTime)
+        {
+            nextDebugLogTime = Time.time + 3f;
+            Debug.Log("[WaterBowl] status filled=" + filled);
+        }
     }
 
     public override void Interact()
     {
+        if (debugLogging) Debug.Log("[WaterBowl] Interact called, filled was=" + filled);
         if (filled) return;
         if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
         filled = true;
         RequestSerialization();
         ApplyVisualLocal();
+        if (debugLogging) Debug.Log("[WaterBowl] Interact done, filled now=" + filled);
     }
 
     public override void OnDeserialization()

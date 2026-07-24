@@ -33,7 +33,7 @@ public class FoodBowl : UdonSharpBehaviour
         ApplyVisualLocal();
     }
 
-    public bool debugLogging = true;
+    public bool debugLogging = false;
     private float nextDebugLogTime;
 
     void Update()
@@ -51,13 +51,13 @@ public class FoodBowl : UdonSharpBehaviour
 
     public override void Interact()
     {
-        Debug.Log("[FoodBowl] Interact called, filled was=" + filled);
+        if (debugLogging) Debug.Log("[FoodBowl] Interact called, filled was=" + filled);
         if (filled) return;
         if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
         filled = true;
         RequestSerialization();
         ApplyVisualLocal();
-        Debug.Log("[FoodBowl] Interact done, filled now=" + filled);
+        if (debugLogging) Debug.Log("[FoodBowl] Interact done, filled now=" + filled);
     }
 
     public override void OnDeserialization()

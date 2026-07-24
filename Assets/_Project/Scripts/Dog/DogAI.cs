@@ -47,13 +47,18 @@ public class DogAI : UdonSharpBehaviour
     private const int TASK_SCRATCH_AMBIENT = 16;
     private const int TASK_GO_TO_TREAT = 17;
     private const int TASK_EATING_TREAT = 18;
+    private const int TASK_FOLLOW_PLAYER = 19;
+
+    // Max distance the followed player may reach before the dog gives up
+    // following (e.g. player teleported or left the area).
+    private const float FOLLOW_ABANDON_DISTANCE = 20f;
 
     // How long the one-shot Scratching clip actually plays (ShibaInu_anim_IP.fbx).
     private const float SCRATCH_CLIP_DURATION = 6.04f;
 
     [Header("Debug")]
     [Tooltip("Logs task/state transitions and a periodic status line to the console. Turn off before publishing.")]
-    public bool debugLogging = true;
+    public bool debugLogging = false;
     private float nextDebugLogTime;
 
     [Header("Config")]
@@ -64,6 +69,10 @@ public class DogAI : UdonSharpBehaviour
     public Animator animator;
     public Transform mouthSocket;
     public AudioSource voiceAudioSource;
+    // Outdoor reverb filter on voiceAudioSource - wired in the Inspector to the
+    // AudioReverbFilter component on the same GameObject as voiceAudioSource.
+    // Values tuned for an open park: minimal reflections, very short decay.
+    public AudioReverbFilter voiceReverbFilter;
 
     [Header("Toys")]
     [Tooltip("The fetch ball - DogAI polls ball.wasThrown/heldByPlayer directly each tick.")]
@@ -91,6 +100,7 @@ public class DogAI : UdonSharpBehaviour
     [UdonSynced] private float syncedThirst = 1f;
     [UdonSynced] private float syncedEnergy = 1f;
     [UdonSynced] private float syncedAffection = 0.2f;
+    [UdonSynced] public bool followingPlayer;
 
     private int lastAppliedActionState = -1;
     private int task = TASK_IDLE;
@@ -112,6 +122,9 @@ public class DogAI : UdonSharpBehaviour
 
     private VRCPlayerApi returnBallTarget;
     private float nextReturnTargetRefresh;
+
+    private VRCPlayerApi followTarget;
+    private float nextFollowTargetRefresh;
 
     private Transform toyTarget;
 
@@ -148,6 +161,27 @@ public class DogAI : UdonSharpBehaviour
         {
             agent.angularSpeed = config.angularSpeed;
             agent.acceleration = config.acceleration;
+        }
+
+        // Configure outdoor reverb on the dog's voice AudioSource.
+        // Preset 0 = Custom, which lets all individual fields take effect.
+        if (voiceReverbFilter != null)
+        {
+            voiceReverbFilter.reverbPreset      = AudioReverbPreset.User; // 0 = Custom
+            voiceReverbFilter.room              = -3000;  // open air - very little room reflection
+            voiceReverbFilter.roomHF            = -2000;
+            voiceReverbFilter.roomLF            = 0;
+            voiceReverbFilter.decayTime         = 0.4f;  // very short - sound dies fast outdoors
+            voiceReverbFilter.decayHFRatio      = 1.5f;  // high frequencies decay faster outdoors
+            voiceReverbFilter.reflectionsLevel  = -5000; // almost no early reflections
+            voiceReverbFilter.reverbLevel       = -4000; // very low reverb tail
+            voiceReverbFilter.reflectionsDelay  = 0.003f;
+            voiceReverbFilter.reverbDelay       = 0.008f;
+            voiceReverbFilter.diffusion         = 100.0f;
+            voiceReverbFilter.density           = 100.0f;
+            voiceReverbFilter.hfReference       = 5000.0f;
+            voiceReverbFilter.lfReference       = 250.0f;
+            voiceReverbFilter.enabled           = true;
         }
 
         string[] legBoneNames = new string[] { "leg_f.L", "leg_f.R", "leg_b.L", "leg_b.R" };
@@ -245,6 +279,7 @@ public class DogAI : UdonSharpBehaviour
         if (t == TASK_SCRATCH_AMBIENT) return "SCRATCH_AMBIENT";
         if (t == TASK_GO_TO_TREAT) return "GO_TO_TREAT";
         if (t == TASK_EATING_TREAT) return "EATING_TREAT";
+        if (t == TASK_FOLLOW_PLAYER) return "FOLLOW_PLAYER";
         return "UNKNOWN(" + t + ")";
     }
 
@@ -290,7 +325,7 @@ public class DogAI : UdonSharpBehaviour
 
         if (info.fullPathHash != lastAnimStateHash)
         {
-            Debug.Log("[DogAI][ANIM] STATE CHANGE at t=" + Time.time.ToString("F2") +
+            if (debugLogging) Debug.Log("[DogAI][ANIM] STATE CHANGE at t=" + Time.time.ToString("F2") +
                 " newStateHash=" + info.fullPathHash + " task=" + TaskName(task) +
                 " ActionState=" + syncedActionState + " isOwner=" + Networking.IsOwner(gameObject));
             lastAnimStateHash = info.fullPathHash;
@@ -397,6 +432,7 @@ public class DogAI : UdonSharpBehaviour
         if (task == TASK_CHEWING) { TickChewing(); return; }
         if (task == TASK_AGILITY) { TickAgility(); return; }
         if (task == TASK_SIT_AMBIENT || task == TASK_LIE_AMBIENT || task == TASK_PET_REACTION || task == TASK_SCRATCH_AMBIENT) { TickTimedIdleReturn(); return; }
+        if (task == TASK_FOLLOW_PLAYER) { TickFollowPlayer(); return; }
 
         // Free to pick a new priority task, highest first.
         bool foodReady = foodBowl != null && foodBowl.filled;
@@ -434,6 +470,7 @@ public class DogAI : UdonSharpBehaviour
             BeginGoToBone();
             return;
         }
+        if (followingPlayer && followTarget != null && followTarget.IsValid()) { BeginFollowPlayer(); return; }
         if (Time.time >= nextAgilityTime && agilityWaypoints != null && agilityWaypoints.Length > 0) { BeginAgility(); return; }
 
         TickIdleWander();
@@ -598,6 +635,60 @@ public class DogAI : UdonSharpBehaviour
         }
     }
 
+    // --- Follow player -------------------------------------------------------
+
+    private void BeginFollowPlayer()
+    {
+        task = TASK_FOLLOW_PLAYER;
+        hasSetDestination = false;
+        if (agent != null && config != null)
+        {
+            agent.isStopped = false;
+            agent.speed = config.wanderMoveSpeed;
+        }
+        if (debugLogging) Debug.Log("[DogAI] BeginFollowPlayer target=" + (followTarget != null && followTarget.IsValid() ? followTarget.displayName : "null"));
+    }
+
+    private void TickFollowPlayer()
+    {
+        if (agent == null) return;
+
+        // Refresh the cached follow target periodically to avoid per-frame
+        // allocations (same pattern as TickReturnBall).
+        if (Time.time >= nextFollowTargetRefresh || followTarget == null || !followTarget.IsValid())
+        {
+            nextFollowTargetRefresh = Time.time + 0.5f;
+            // Keep the originally chosen player; only refresh validity.
+            if (followTarget == null || !followTarget.IsValid())
+            {
+                // Followed player left or became invalid - abandon follow.
+                followingPlayer = false;
+                followTarget = null;
+                RequestSerialization();
+                task = TASK_IDLE;
+                ScheduleNextWander();
+                if (debugLogging) Debug.Log("[DogAI] Follow abandoned: target no longer valid.");
+                return;
+            }
+        }
+
+        Vector3 targetPos = followTarget.GetPosition();
+
+        // Cancel follow if the player has gone too far away.
+        if (Vector3.Distance(transform.position, targetPos) > FOLLOW_ABANDON_DISTANCE)
+        {
+            followingPlayer = false;
+            followTarget = null;
+            RequestSerialization();
+            task = TASK_IDLE;
+            ScheduleNextWander();
+            if (debugLogging) Debug.Log("[DogAI] Follow abandoned: player out of range.");
+            return;
+        }
+
+        SetDestinationIfMoved(targetPos);
+    }
+
     // --- Feeding ------------------------------------------------------------
 
     // Called (void, no return value) by FoodBowl/WaterBowl whenever their
@@ -741,8 +832,15 @@ public class DogAI : UdonSharpBehaviour
         {
             agent.isStopped = true;
             FaceTarget(toyTarget.position);
+            // Tell the toy to hide itself and schedule its own respawn.
+            if (toy != null)
+            {
+                if (!Networking.IsOwner(toy.gameObject)) Networking.SetOwner(Networking.LocalPlayer, toy.gameObject);
+                toy.Consume();
+            }
             task = TASK_CHEWING;
             SetActionState(ACTION_DIG);
+            PlayDig();
             taskEndTime = Time.time + config.chewDuration;
         }
     }
@@ -919,9 +1017,41 @@ public class DogAI : UdonSharpBehaviour
     // --- Petting ------------------------------------------------------------
 
     // Place this on a Collider covering the dog's body (or the root itself).
+    // First interact: pet the dog AND begin following the interacting player.
+    // Second interact while already following: stop following (dog goes idle).
     public override void Interact()
     {
         SendCustomNetworkEvent(NetworkEventTarget.All, nameof(ReactToPet));
+
+        // Toggle follow on the owner, who is the only one running AI.
+        // Non-owners sending this would race with the owner, so gate it.
+        if (!Networking.IsOwner(gameObject)) return;
+
+        if (followingPlayer)
+        {
+            // Second tap - cancel follow.
+            followingPlayer = false;
+            followTarget = null;
+            RequestSerialization();
+            if (debugLogging) Debug.Log("[DogAI] Follow cancelled by player interact.");
+            if (task == TASK_FOLLOW_PLAYER)
+            {
+                task = TASK_IDLE;
+                ScheduleNextWander();
+            }
+        }
+        else
+        {
+            // First tap - begin following the nearest player.
+            VRCPlayerApi nearest = FindNearestPlayer();
+            if (nearest != null && nearest.IsValid())
+            {
+                followTarget = nearest;
+                followingPlayer = true;
+                RequestSerialization();
+                if (debugLogging) Debug.Log("[DogAI] Follow started, target=" + nearest.displayName);
+            }
+        }
     }
 
     // Runs on every client so everyone sees the happy reaction, but only the
@@ -1020,6 +1150,11 @@ public class DogAI : UdonSharpBehaviour
     {
         if (animator != null) animator.SetTrigger("BarkTrigger");
         PlayRandomClip(config != null ? config.barkClips : null);
+    }
+
+    private void PlayDig()
+    {
+        PlayRandomClip(config != null ? config.digClips : null);
     }
 
     private void PlayRandomClip(AudioClip[] clips)

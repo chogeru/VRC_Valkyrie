@@ -84,5 +84,11 @@ MonoBehaviour:
   agilityIntervalSeconds: 45
   agilityWaypointArriveDistance: 0.5
   agilityJumpLeadDistance: 1
-  barkClips: []
-  happyClips: []
+  barkClips:
+  - {fileID: 8300000, guid: 7ff8f23c71f4cac43866851b3d55bfe0, type: 3}
+  - {fileID: 8300000, guid: 2b061f40271d00146908681d4b33a9a8, type: 3}
+  - {fileID: 8300000, guid: c046f4d39e377d24680d0179ae37233a, type: 3}
+  happyClips:
+  - {fileID: 8300000, guid: a921a3856696e8b409c124bc17f6be29, type: 3}
+  digClips:
+  - {fileID: 8300000, guid: 27d7df98316976748aac258822907e0c, type: 3}

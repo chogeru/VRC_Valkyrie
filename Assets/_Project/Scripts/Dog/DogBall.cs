@@ -25,7 +25,7 @@ public class DogBall : UdonSharpBehaviour
     private Collider ballCollider;
     private bool carried;
 
-    public bool debugLogging = true;
+    public bool debugLogging = false;
     private float nextDebugLogTime;
 
     void Start()

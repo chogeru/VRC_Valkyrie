@@ -75,4 +75,6 @@ public class DogConfig : UdonSharpBehaviour
     [Header("Voice Audio (optional)")]
     public AudioClip[] barkClips;
     public AudioClip[] happyClips;
+    [Tooltip("Played when the dog starts chewing a toy/bone (ACTION_DIG animation).")]
+    public AudioClip[] digClips;
 }
